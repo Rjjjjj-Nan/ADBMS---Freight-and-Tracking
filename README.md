@@ -2,6 +2,8 @@
 
 A complete freight and logistics web application built with Flask and MySQL, featuring real-time GPS tracking, AI-powered route optimization, and automated shipment management.
 
+⚠️ **LOCAL HOSTING ONLY** - This system is designed exclusively for **local development and testing** on your machine. It is **NOT available for remote hosting, cloud deployment, or production environments**. The application must be run on `localhost` with a local MySQL database.
+
 ## Features
 
 - **Dashboard** - Real-time metrics and at-risk shipment monitoring
@@ -84,19 +86,26 @@ gps_tracking_sessions (id, shipment_id, is_active, created_at, ended_at)
 gps_pings (id, session_id, latitude, longitude, accuracy_meters, altitude, created_at)
 ```
 
-### 4. Run the Application
+### 4. Run the Application (Local Machine Only)
 
 ```bash
 python app.py
 ```
 
-The app will start on `http://localhost:5000`
+**The app will start on `http://localhost:5000`**
 
-**Default Credentials:**
+⚠️ **The application will ONLY work on your local machine.** 
+- Do NOT attempt to access from other machines
+- Do NOT deploy to cloud servers or remote hosting
+- Database must be on `localhost`
+- Use only for development and testing
+
+**Default Access:**
+- URL: `http://localhost:5000` (local machine only)
 - No authentication required (development mode)
 - Access all features directly from the dashboard
 
-## Routes & Endpoints
+## Setup & Installation (Continued)
 
 ### Web Routes (HTML)
 
@@ -280,6 +289,39 @@ AttributeError: 'MySQLConnection' object has no attribute 'executescript'
 - **Validate all inputs** - coordinates, weights, customer names
 - **HTTPS required** for Geolocation API in production
 - **Database credentials** stored in environment variables (not hardcoded)
+
+## System Limitations & Local Hosting Only
+
+**⚠️ IMPORTANT: This system is for LOCAL HOSTING ONLY**
+
+This application **cannot and is not designed for**:
+
+- ❌ Remote hosting or cloud deployment (AWS, Azure, Google Cloud, etc.)
+- ❌ Production environments
+- ❌ Shared hosting or VPS
+- ❌ Docker containers with external access
+- ❌ Online deployment through platforms like Heroku, Vercel, or similar
+- ❌ Multi-user concurrent access over the internet
+- ❌ Database access from external networks
+
+**This system MUST**:
+
+- ✅ Run on `localhost` (127.0.0.1) only
+- ✅ Use local MySQL database (`localhost` or `127.0.0.1`)
+- ✅ Be accessed only from the same machine it's running on
+- ✅ Not expose ports beyond local network
+- ✅ Be run for development and testing purposes only
+
+### Why Local Only?
+
+1. **No Authentication** - Development mode with no user authentication
+2. **Hardcoded Defaults** - Assumes XAMPP with default credentials
+3. **Debug Mode Enabled** - Flask running with `debug=True`
+4. **No HTTPS/SSL** - Browser Geolocation requires HTTPS in production
+5. **No Load Balancing** - Single-threaded development server
+6. **Database Security** - Credentials in plain environment variables
+7. **No Rate Limiting** - APIs have no protection against abuse
+8. **Development Dependencies** - Only suitable for learning and testing
 
 ## Future Enhancements
 

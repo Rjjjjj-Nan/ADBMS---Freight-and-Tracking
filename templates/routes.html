@@ -77,18 +77,6 @@
     </article>
 </section>
 
-<!-- MAP VIEW -->
-<section style="margin: 20px 0;">
-    <article class="card">
-        <h2>Route Map Visualization</h2>
-        <div id="route-map" style="height: 500px; background-color: #f5f5f5; border-radius: 4px; position: relative;">
-            <div style="position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #999;">
-                <p>Map loading...</p>
-            </div>
-        </div>
-    </article>
-</section>
-
 <!-- LIST VIEW WITH SEQUENCE -->
 <section style="margin: 20px 0;">
     <article class="card">
@@ -175,75 +163,6 @@
         </div>
     </article>
 </section>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const mapElement = document.getElementById('route-map');
-    if (!mapElement) return;
-    
-    // Initialize Leaflet map
-    const map = L.map(mapElement).setView([13.0, 122.0], 6);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-    }).addTo(map);
-    
-    // Warehouse marker
-    const warehouse = L.circleMarker(
-        [{{ warehouse_lat }}, {{ warehouse_lng }}],
-        { radius: 10, fillColor: '#ff0000', color: '#333', weight: 2, opacity: 1, fillOpacity: 0.8 }
-    ).addTo(map);
-    warehouse.bindPopup('<strong>Manila Warehouse (Hub)</strong><br>{{ warehouse_lat }}, {{ warehouse_lng }}');
-    
-    // Route markers and polyline
-    const routePoints = [[{{ warehouse_lat }}, {{ warehouse_lng }}}];
-    const markers = [];
-    
-    {% for ship in optimized_route %}
-    const lat = {{ ship['dest_lat'] }};
-    const lng = {{ ship['dest_lng'] }};
-    routePoints.push([lat, lng]);
-    
-    const marker = L.circleMarker(
-        [lat, lng],
-        {
-            radius: 8,
-            fillColor: '#2196F3',
-            color: '#0d47a1',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }
-    ).addTo(map);
-    
-    marker.bindPopup(
-        '<strong>#{{ ship['route_sequence'] }} - {{ ship['destination'] }}</strong><br>' +
-        'Code: {{ ship['tracking_code'] }}<br>' +
-        'Distance: {{ ship['distance_from_prev'] }} km<br>' +
-        'Priority: {{ ship['priority'] }}'
-    );
-    markers.push(marker);
-    {% endfor %}
-    
-    // Draw route polyline
-    if (routePoints.length > 1) {
-        L.polyline(routePoints, {
-            color: '#2196F3',
-            weight: 2,
-            opacity: 0.7,
-            dashArray: '5, 5'
-        }).addTo(map);
-    }
-    
-    // Fit bounds
-    if (routePoints.length > 0) {
-        const group = new L.featureGroup([...markers, warehouse]);
-        map.fitBounds(group.getBounds(), { padding: [50, 50] });
-    }
-});
-</script>
 
 <style>
 .badge {

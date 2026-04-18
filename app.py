@@ -881,8 +881,6 @@ def routes():
 		at_risk_shipments=at_risk_shipments,
 		pending_count=len(pending_shipments),
 		at_risk_count=len(at_risk_shipments),
-		warehouse_lat=warehouse_lat,
-		warehouse_lng=warehouse_lng,
 		now=datetime.now()
 	)
 
