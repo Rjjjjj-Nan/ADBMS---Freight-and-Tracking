@@ -1,7 +1,8 @@
 import os
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
+import math
 
 import mysql.connector
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, url_for
@@ -10,7 +11,7 @@ from flask import Flask, flash, g, jsonify, redirect, render_template, request, 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "freight-logistics-dev-key")
 
-# MySQL Configuration (XAMPP default)
+# MySQL Configuration (XAMPP defaults: root user, empty password, localhost)
 MYSQL_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "localhost"),
     "user": os.getenv("MYSQL_USER", "root"),
@@ -41,104 +42,6 @@ def close_db(_exc):
 		db.close()
 
 
-def init_db():
-	db = get_db()
-	db.executescript(
-		"""
-		CREATE TABLE IF NOT EXISTS process_templates (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			flow_name TEXT NOT NULL,
-			step_order INTEGER NOT NULL,
-			step_name TEXT NOT NULL,
-			description TEXT,
-			UNIQUE(flow_name, step_order)
-		);
-
-		CREATE TABLE IF NOT EXISTS shipments (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			tracking_code TEXT NOT NULL UNIQUE,
-			customer_name TEXT NOT NULL,
-			origin TEXT NOT NULL,
-			destination TEXT NOT NULL,
-			cargo_type TEXT NOT NULL,
-			weight_kg REAL NOT NULL,
-			priority TEXT NOT NULL DEFAULT 'Regular',
-			status TEXT NOT NULL,
-			current_step INTEGER NOT NULL DEFAULT 1,
-			expected_delivery TEXT,
-			last_lat REAL,
-			last_lng REAL,
-			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-
-		CREATE TABLE IF NOT EXISTS tracking_updates (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			shipment_id INTEGER NOT NULL,
-			status TEXT NOT NULL,
-			location_name TEXT NOT NULL,
-			latitude REAL NOT NULL,
-			longitude REAL NOT NULL,
-			notes TEXT,
-			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE
-		);
-
-		CREATE TABLE IF NOT EXISTS gps_tracking_sessions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			shipment_id INTEGER NOT NULL UNIQUE,
-			is_active INTEGER NOT NULL DEFAULT 1,
-			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			ended_at TEXT,
-			FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE
-		);
-
-		CREATE TABLE IF NOT EXISTS gps_pings (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			session_id INTEGER NOT NULL,
-			latitude REAL NOT NULL,
-			longitude REAL NOT NULL,
-			accuracy_meters REAL,
-			altitude REAL,
-			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (session_id) REFERENCES gps_tracking_sessions(id) ON DELETE CASCADE
-		);
-
-		CREATE INDEX IF NOT EXISTS idx_gps_pings_session ON gps_pings(session_id);
-		CREATE INDEX IF NOT EXISTS idx_tracking_updates_shipment ON tracking_updates(shipment_id);
-		"""
-	)
-	db.commit()
-	seed_predefined_processes(db)
-
-
-def seed_predefined_processes(db):
-	existing = db.execute(
-		"SELECT COUNT(1) AS count_rows FROM process_templates WHERE flow_name = ?",
-		(DEFAULT_FLOW_NAME,),
-	).fetchone()["count_rows"]
-	if existing:
-		return
-
-	steps = [
-		(DEFAULT_FLOW_NAME, 1, "Booking Confirmed", "Order accepted and validated."),
-		(DEFAULT_FLOW_NAME, 2, "Picked Up", "Cargo has been collected from origin."),
-		(DEFAULT_FLOW_NAME, 3, "At Origin Hub", "Cargo arrived at the origin sorting hub."),
-		(DEFAULT_FLOW_NAME, 4, "In Transit", "Cargo is moving to destination region."),
-		(DEFAULT_FLOW_NAME, 5, "At Destination Hub", "Cargo arrived at destination sorting hub."),
-		(DEFAULT_FLOW_NAME, 6, "Out for Delivery", "Courier is delivering to recipient."),
-		(DEFAULT_FLOW_NAME, 7, "Delivered", "Cargo delivered successfully."),
-	]
-	db.executemany(
-		"""
-		INSERT INTO process_templates (flow_name, step_order, step_name, description)
-		VALUES (?, ?, ?, ?)
-		""",
-		steps,
-	)
-	db.commit()
-
-
 def is_within_philippines(latitude, longitude):
 	return (
 		PH_BOUNDS["min_lat"] <= latitude <= PH_BOUNDS["max_lat"]
@@ -146,35 +49,181 @@ def is_within_philippines(latitude, longitude):
 	)
 
 
-def generate_tracking_code(db):
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+	"""Calculate distance in km between two coordinates using Haversine formula"""
+	R = 6371  # Earth's radius in km
+	
+	lat1_rad = math.radians(lat1)
+	lat2_rad = math.radians(lat2)
+	delta_lat = math.radians(lat2 - lat1)
+	delta_lon = math.radians(lon2 - lon1)
+	
+	a = math.sin(delta_lat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon/2)**2
+	c = 2 * math.asin(math.sqrt(a))
+	
+	return R * c
+
+
+def estimate_delivery_time(distance_km):
+	"""Estimate delivery time in hours based on distance"""
+	# Assumes average speed of 40 km/h for road transport
+	# Plus 1 hour for processing at each hub
+	hours = (distance_km / 40) + 1
+	return max(1, min(hours, 48))  # Between 1-48 hours
+
+
+def estimate_delivery_cost(distance_km, priority):
+	"""Estimate delivery cost based on distance and priority"""
+	base_cost = 100  # PHP base cost
+	per_km_cost = 5  # PHP per km
+	priority_multiplier = {"Regular": 1.0, "Express": 1.5, "Critical": 2.0}
+	
+	multiplier = priority_multiplier.get(priority, 1.0)
+	cost = (base_cost + (distance_km * per_km_cost)) * multiplier
+	
+	return round(cost, 2)
+
+
+def optimize_route_nearest_neighbor(shipments, warehouse_lat, warehouse_lng):
+	"""Optimize route using nearest neighbor algorithm"""
+	if not shipments:
+		return []
+	
+	route = []
+	remaining = list(shipments)
+	current_lat, current_lng = warehouse_lat, warehouse_lng
+	
+	while remaining:
+		nearest = min(
+			remaining,
+			key=lambda s: haversine_distance(current_lat, current_lng, s['dest_lat'], s['dest_lng'])
+		)
+		route.append(nearest)
+		remaining.remove(nearest)
+		current_lat, current_lng = nearest['dest_lat'], nearest['dest_lng']
+	
+	return route
+
+
+def calculate_route_metrics(route, warehouse_lat, warehouse_lng):
+	"""Calculate total distance, time, and cost for a route"""
+	if not route:
+		return {"distance": 0, "time_hours": 0, "cost": 0, "shipment_count": 0}
+	
+	total_distance = 0
+	current_lat, current_lng = warehouse_lat, warehouse_lng
+	
+	# Distance from warehouse to first stop
+	total_distance += haversine_distance(current_lat, current_lng, route[0]['dest_lat'], route[0]['dest_lng'])
+	
+	# Distance between stops
+	for i in range(len(route) - 1):
+		total_distance += haversine_distance(
+			route[i]['dest_lat'], route[i]['dest_lng'],
+			route[i+1]['dest_lat'], route[i+1]['dest_lng']
+		)
+	
+	# Distance back to warehouse
+	total_distance += haversine_distance(route[-1]['dest_lat'], route[-1]['dest_lng'], warehouse_lat, warehouse_lng)
+	
+	time_hours = estimate_delivery_time(total_distance)
+	cost = sum(estimate_delivery_cost(
+		haversine_distance(warehouse_lat, warehouse_lng, ship['dest_lat'], ship['dest_lng']),
+		ship['priority']
+	) for ship in route)
+	
+	return {
+		"distance": round(total_distance, 2),
+		"time_hours": round(time_hours, 2),
+		"cost": round(cost, 2),
+		"shipment_count": len(route)
+	}
+
+
+def auto_cancel_overdue_shipments(db):
+	"""Auto-cancel 'Booking Confirmed' shipments not processed for 3+ days"""
+	try:
+		# Create a separate non-dictionary cursor for this operation
+		cursor = db.cursor()
+		
+		three_days_ago = (datetime.now() - timedelta(days=3)).isoformat()
+		
+		# Find shipments stuck in 'Booking Confirmed' for 3+ days
+		cursor.execute(
+			"""
+			SELECT id, tracking_code FROM shipments
+			WHERE status = 'Booking Confirmed' AND created_at <= %s
+			""",
+			(three_days_ago,)
+		)
+		old_shipments = cursor.fetchall()
+		
+		cancelled_count = 0
+		for shipment in old_shipments:
+			shipment_id = shipment[0]
+			tracking_code = shipment[1]
+			
+			# Update status to Cancelled
+			cursor.execute(
+				"""
+				UPDATE shipments
+				SET status = 'Cancelled', updated_at = %s
+				WHERE id = %s
+				""",
+				(datetime.now().isoformat(), shipment_id)
+			)
+			
+			# Add cancellation note
+			cursor.execute(
+				"""
+				INSERT INTO tracking_updates (shipment_id, status, location_name, latitude, longitude, notes, created_at)
+				VALUES (%s, %s, %s, %s, %s, %s, %s)
+				""",
+				(shipment_id, 'Cancelled', 'System', 0.0, 0.0, 'Auto-cancelled: Not processed within 3 days', datetime.now().isoformat())
+			)
+			
+			cancelled_count += 1
+		
+		if cancelled_count > 0:
+			db.commit()
+		
+		cursor.close()
+		return cancelled_count
+	except Exception as e:
+		print(f"Error in auto_cancel_overdue_shipments: {e}")
+		return 0
+
+
+def generate_tracking_code(cursor):
 	while True:
 		stamp = datetime.now().strftime("%y%m%d")
 		suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
 		code = f"PH{stamp}{suffix}"
-		exists = db.execute(
-			"SELECT 1 FROM shipments WHERE tracking_code = ?", (code,)
-		).fetchone()
-		if not exists:
+		cursor.execute("SELECT 1 FROM shipments WHERE tracking_code = %s", (code,))
+		if not cursor.fetchone():
 			return code
 
 
-def get_process_step(db, step_order):
-	return db.execute(
+def get_process_step(cursor, step_order):
+	cursor.execute(
 		"""
 		SELECT step_order, step_name, description
 		FROM process_templates
-		WHERE flow_name = ? AND step_order = ?
+		WHERE flow_name = %s AND step_order = %s
 		""",
 		(DEFAULT_FLOW_NAME, step_order),
-	).fetchone()
+	)
+	return cursor.fetchone()
 
 
-def get_max_step_order(db):
-	result = db.execute(
-		"SELECT MAX(step_order) AS max_step FROM process_templates WHERE flow_name = ?",
+def get_max_step_order(cursor):
+	cursor.execute(
+		"SELECT MAX(step_order) AS max_step FROM process_templates WHERE flow_name = %s",
 		(DEFAULT_FLOW_NAME,),
-	).fetchone()
-	return result["max_step"] or 1
+	)
+	result = cursor.fetchone()
+	return result['max_step'] if result and result['max_step'] else 1
 
 
 @app.route("/")
@@ -185,37 +234,62 @@ def home():
 @app.route("/dashboard")
 def dashboard():
 	db = get_db()
+	cursor = db.cursor(dictionary=True)
+	
+	# Auto-cancel overdue shipments
+	auto_cancel_overdue_shipments(db)
 
-	total_shipments = db.execute("SELECT COUNT(1) AS count_rows FROM shipments").fetchone()[
-		"count_rows"
-	]
-	delivered_count = db.execute(
-		"SELECT COUNT(1) AS count_rows FROM shipments WHERE status = 'Delivered'"
-	).fetchone()["count_rows"]
-	in_transit_count = db.execute(
-		"SELECT COUNT(1) AS count_rows FROM shipments WHERE status IN ('In Transit', 'Out for Delivery')"
-	).fetchone()["count_rows"]
-	active_count = db.execute(
-		"SELECT COUNT(1) AS count_rows FROM shipments WHERE status != 'Delivered'"
-	).fetchone()["count_rows"]
+	cursor.execute("SELECT COUNT(*) as count_rows FROM shipments")
+	total_shipments = cursor.fetchone()["count_rows"]
 
-	latest_shipments = db.execute(
+	cursor.execute(
+		"SELECT COUNT(*) as count_rows FROM shipments WHERE status = %s", ("Delivered",)
+	)
+	delivered_count = cursor.fetchone()["count_rows"]
+
+	cursor.execute(
+		"SELECT COUNT(*) as count_rows FROM shipments WHERE status IN (%s, %s)",
+		("In Transit", "Out for Delivery"),
+	)
+	in_transit_count = cursor.fetchone()["count_rows"]
+
+	cursor.execute(
+		"SELECT COUNT(*) as count_rows FROM shipments WHERE status != %s", ("Delivered",)
+	)
+	active_count = cursor.fetchone()["count_rows"]
+	
+	# Count at-risk shipments (Booking Confirmed for 2+ days)
+	two_days_ago = (datetime.now() - timedelta(days=2)).isoformat()
+	cursor.execute(
+		"""
+		SELECT COUNT(*) as count_rows FROM shipments
+		WHERE status = 'Booking Confirmed' AND created_at <= %s
+		""",
+		(two_days_ago,)
+	)
+	at_risk_count = cursor.fetchone()["count_rows"]
+
+	cursor.execute(
 		"""
 		SELECT id, tracking_code, customer_name, origin, destination, status, expected_delivery, updated_at
 		FROM shipments
 		ORDER BY updated_at DESC
 		LIMIT 8
 		"""
-	).fetchall()
+	)
+	latest_shipments = cursor.fetchall()
 
-	status_breakdown = db.execute(
+	cursor.execute(
 		"""
-		SELECT status, COUNT(1) AS count_rows
+		SELECT status, COUNT(*) AS count_rows
 		FROM shipments
 		GROUP BY status
 		ORDER BY count_rows DESC
 		"""
-	).fetchall()
+	)
+	status_breakdown = cursor.fetchall()
+
+	cursor.close()
 
 	return render_template(
 		"dashboard.html",
@@ -223,6 +297,7 @@ def dashboard():
 		delivered_count=delivered_count,
 		in_transit_count=in_transit_count,
 		active_count=active_count,
+		at_risk_count=at_risk_count,
 		latest_shipments=latest_shipments,
 		status_breakdown=status_breakdown,
 	)
@@ -231,29 +306,33 @@ def dashboard():
 @app.route("/shipments")
 def shipments():
 	db = get_db()
+	cursor = db.cursor(dictionary=True)
 	query = request.args.get("q", "").strip()
 
 	if query:
-		rows = db.execute(
+		cursor.execute(
 			"""
 			SELECT id, tracking_code, customer_name, origin, destination, cargo_type, priority, status, expected_delivery, updated_at
 			FROM shipments
-			WHERE tracking_code LIKE ?
-				OR customer_name LIKE ?
-				OR origin LIKE ?
-				OR destination LIKE ?
+			WHERE tracking_code LIKE %s
+				OR customer_name LIKE %s
+				OR origin LIKE %s
+				OR destination LIKE %s
 			ORDER BY updated_at DESC
 			""",
 			(f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"),
-		).fetchall()
+		)
 	else:
-		rows = db.execute(
+		cursor.execute(
 			"""
 			SELECT id, tracking_code, customer_name, origin, destination, cargo_type, priority, status, expected_delivery, updated_at
 			FROM shipments
 			ORDER BY updated_at DESC
 			"""
-		).fetchall()
+		)
+
+	rows = cursor.fetchall()
+	cursor.close()
 
 	return render_template("shipments.html", shipments=rows, query=query)
 
@@ -261,6 +340,8 @@ def shipments():
 @app.route("/shipments/new", methods=["GET", "POST"])
 def new_shipment():
 	db = get_db()
+	cursor = db.cursor(dictionary=True)
+
 	if request.method == "POST":
 		customer_name = request.form.get("customer_name", "").strip()
 		origin = request.form.get("origin", "").strip()
@@ -275,26 +356,29 @@ def new_shipment():
 			longitude = float(request.form.get("longitude", "0"))
 		except ValueError:
 			flash("Weight and coordinates must be numeric.", "error")
+			cursor.close()
 			return redirect(url_for("new_shipment"))
 
 		if not all([customer_name, origin, destination, cargo_type]) or weight_kg <= 0:
 			flash("Please complete all required fields with valid values.", "error")
+			cursor.close()
 			return redirect(url_for("new_shipment"))
 
 		if not is_within_philippines(latitude, longitude):
 			flash("Initial coordinates must be within the Philippines map bounds.", "error")
+			cursor.close()
 			return redirect(url_for("new_shipment"))
 
-		first_step = get_process_step(db, 1)
-		tracking_code = generate_tracking_code(db)
+		first_step = get_process_step(cursor, 1)
+		tracking_code = generate_tracking_code(cursor)
 
-		cursor = db.execute(
+		cursor.execute(
 			"""
 			INSERT INTO shipments (
 				tracking_code, customer_name, origin, destination, cargo_type, weight_kg,
-				priority, status, current_step, expected_delivery, last_lat, last_lng, updated_at
+				priority, status, current_step, expected_delivery, last_lat, last_lng
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 			""",
 			(
 				tracking_code,
@@ -304,7 +388,7 @@ def new_shipment():
 				cargo_type,
 				weight_kg,
 				priority,
-				first_step["step_name"],
+				first_step['step_name'],
 				1,
 				expected_delivery,
 				latitude,
@@ -313,14 +397,14 @@ def new_shipment():
 		)
 		shipment_id = cursor.lastrowid
 
-		db.execute(
+		cursor.execute(
 			"""
 			INSERT INTO tracking_updates (shipment_id, status, location_name, latitude, longitude, notes)
-			VALUES (?, ?, ?, ?, ?, ?)
+			VALUES (%s, %s, %s, %s, %s, %s)
 			""",
 			(
 				shipment_id,
-				first_step["step_name"],
+				first_step['step_name'],
 				origin,
 				latitude,
 				longitude,
@@ -328,19 +412,25 @@ def new_shipment():
 			),
 		)
 		db.commit()
+		cursor.close()
 
 		flash(f"Shipment created. Tracking Code: {tracking_code}", "success")
 		return redirect(url_for("shipments"))
 
+	cursor.close()
 	return render_template("shipment_form.html", shipment=None)
 
 
 @app.route("/shipments/<int:shipment_id>/edit", methods=["GET", "POST"])
 def edit_shipment(shipment_id):
 	db = get_db()
-	shipment = db.execute("SELECT * FROM shipments WHERE id = ?", (shipment_id,)).fetchone()
+	cursor = db.cursor(dictionary=True)
+	cursor.execute("SELECT * FROM shipments WHERE id = %s", (shipment_id,))
+	shipment = cursor.fetchone()
+
 	if not shipment:
 		flash("Shipment not found.", "error")
+		cursor.close()
 		return redirect(url_for("shipments"))
 
 	if request.method == "POST":
@@ -355,18 +445,20 @@ def edit_shipment(shipment_id):
 			weight_kg = float(request.form.get("weight_kg", "0"))
 		except ValueError:
 			flash("Weight must be numeric.", "error")
+			cursor.close()
 			return redirect(url_for("edit_shipment", shipment_id=shipment_id))
 
 		if not all([customer_name, origin, destination, cargo_type]) or weight_kg <= 0:
 			flash("Please complete all required fields with valid values.", "error")
+			cursor.close()
 			return redirect(url_for("edit_shipment", shipment_id=shipment_id))
 
-		db.execute(
+		cursor.execute(
 			"""
 			UPDATE shipments
-			SET customer_name = ?, origin = ?, destination = ?, cargo_type = ?,
-				weight_kg = ?, priority = ?, expected_delivery = ?, updated_at = CURRENT_TIMESTAMP
-			WHERE id = ?
+			SET customer_name = %s, origin = %s, destination = %s, cargo_type = %s,
+				weight_kg = %s, priority = %s, expected_delivery = %s
+			WHERE id = %s
 			""",
 			(
 				customer_name,
@@ -380,51 +472,59 @@ def edit_shipment(shipment_id):
 			),
 		)
 		db.commit()
+		cursor.close()
 		flash("Shipment details updated.", "success")
 		return redirect(url_for("shipments"))
 
+	cursor.close()
 	return render_template("shipment_form.html", shipment=shipment)
 
 
 @app.route("/shipments/<int:shipment_id>/advance", methods=["POST"])
 def advance_process(shipment_id):
 	db = get_db()
-	shipment = db.execute("SELECT * FROM shipments WHERE id = ?", (shipment_id,)).fetchone()
+	cursor = db.cursor(dictionary=True)
+	cursor.execute("SELECT * FROM shipments WHERE id = %s", (shipment_id,))
+	shipment = cursor.fetchone()
+
 	if not shipment:
 		flash("Shipment not found.", "error")
+		cursor.close()
 		return redirect(url_for("shipments"))
 
-	max_step = get_max_step_order(db)
+	max_step = get_max_step_order(cursor)
 	current_step = shipment["current_step"]
 	if current_step >= max_step:
 		flash("Shipment already at final process step.", "error")
+		cursor.close()
 		return redirect(url_for("shipments"))
 
 	next_step = current_step + 1
-	step = get_process_step(db, next_step)
+	step = get_process_step(cursor, next_step)
 
 	location_name = request.form.get("location_name", "").strip() or shipment["destination"]
-	notes = request.form.get("notes", "").strip() or step["description"]
+	notes = request.form.get("notes", "").strip() or step['description']
 
-	latitude = shipment["last_lat"] if shipment["last_lat"] is not None else 14.5995
-	longitude = shipment["last_lng"] if shipment["last_lng"] is not None else 120.9842
+	latitude = float(shipment["last_lat"]) if shipment["last_lat"] is not None else 14.5995
+	longitude = float(shipment["last_lng"]) if shipment["last_lng"] is not None else 120.9842
 
-	db.execute(
+	cursor.execute(
 		"""
 		UPDATE shipments
-		SET status = ?, current_step = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ?
+		SET status = %s, current_step = %s
+		WHERE id = %s
 		""",
-		(step["step_name"], next_step, shipment_id),
+		(step['step_name'], next_step, shipment_id),
 	)
-	db.execute(
+	cursor.execute(
 		"""
 		INSERT INTO tracking_updates (shipment_id, status, location_name, latitude, longitude, notes)
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES (%s, %s, %s, %s, %s, %s)
 		""",
-		(shipment_id, step["step_name"], location_name, latitude, longitude, notes),
+		(shipment_id, step['step_name'], location_name, latitude, longitude, notes),
 	)
 	db.commit()
+	cursor.close()
 
 	flash(f"Process advanced to: {step['step_name']}", "success")
 	return redirect(url_for("track_shipment", shipment_id=shipment_id))
@@ -433,9 +533,13 @@ def advance_process(shipment_id):
 @app.route("/shipments/<int:shipment_id>/track", methods=["GET", "POST"])
 def track_shipment(shipment_id):
 	db = get_db()
-	shipment = db.execute("SELECT * FROM shipments WHERE id = ?", (shipment_id,)).fetchone()
+	cursor = db.cursor(dictionary=True)
+	cursor.execute("SELECT * FROM shipments WHERE id = %s", (shipment_id,))
+	shipment = cursor.fetchone()
+
 	if not shipment:
 		flash("Shipment not found.", "error")
+		cursor.close()
 		return redirect(url_for("shipments"))
 
 	if request.method == "POST":
@@ -445,6 +549,7 @@ def track_shipment(shipment_id):
 
 		if not location_name:
 			flash("Location name is required for tracking updates.", "error")
+			cursor.close()
 			return redirect(url_for("track_shipment", shipment_id=shipment_id))
 
 		try:
@@ -452,51 +557,57 @@ def track_shipment(shipment_id):
 			longitude = float(request.form.get("longitude", "0"))
 		except ValueError:
 			flash("Latitude and longitude must be numeric.", "error")
+			cursor.close()
 			return redirect(url_for("track_shipment", shipment_id=shipment_id))
 
 		if not is_within_philippines(latitude, longitude):
 			flash("Coordinates must be within the Philippines map bounds.", "error")
+			cursor.close()
 			return redirect(url_for("track_shipment", shipment_id=shipment_id))
 
-		db.execute(
+		cursor.execute(
 			"""
 			INSERT INTO tracking_updates (shipment_id, status, location_name, latitude, longitude, notes)
-			VALUES (?, ?, ?, ?, ?, ?)
+			VALUES (%s, %s, %s, %s, %s, %s)
 			""",
 			(shipment_id, status, location_name, latitude, longitude, notes),
 		)
-		db.execute(
+		cursor.execute(
 			"""
 			UPDATE shipments
-			SET status = ?, last_lat = ?, last_lng = ?, updated_at = CURRENT_TIMESTAMP
-			WHERE id = ?
+			SET status = %s, last_lat = %s, last_lng = %s
+			WHERE id = %s
 			""",
 			(status, latitude, longitude, shipment_id),
 		)
 		db.commit()
+		cursor.close()
 		flash("Tracking update added.", "success")
 		return redirect(url_for("track_shipment", shipment_id=shipment_id))
 
-	updates = db.execute(
+	cursor.execute(
 		"""
 		SELECT id, status, location_name, latitude, longitude, notes, created_at
 		FROM tracking_updates
-		WHERE shipment_id = ?
+		WHERE shipment_id = %s
 		ORDER BY created_at DESC, id DESC
 		""",
 		(shipment_id,),
-	).fetchall()
+	)
+	updates = cursor.fetchall()
 
 	map_points = [
 		{
 			"status": row["status"],
 			"location_name": row["location_name"],
-			"latitude": row["latitude"],
-			"longitude": row["longitude"],
-			"created_at": row["created_at"],
+			"latitude": float(row["latitude"]),
+			"longitude": float(row["longitude"]),
+			"created_at": row["created_at"].isoformat() if hasattr(row["created_at"], 'isoformat') else str(row["created_at"]),
 		}
 		for row in reversed(updates)
 	]
+
+	cursor.close()
 
 	return render_template(
 		"tracking.html",
@@ -510,26 +621,35 @@ def track_shipment(shipment_id):
 @app.route("/api/shipments/<int:shipment_id>/tracking")
 def shipment_tracking_api(shipment_id):
 	db = get_db()
-	shipment = db.execute(
-		"SELECT id, tracking_code, status FROM shipments WHERE id = ?", (shipment_id,)
-	).fetchone()
+	cursor = db.cursor(dictionary=True)
+	cursor.execute(
+		"SELECT id, tracking_code, status FROM shipments WHERE id = %s", (shipment_id,)
+	)
+	shipment = cursor.fetchone()
+
 	if not shipment:
+		cursor.close()
 		return jsonify({"error": "Shipment not found"}), 404
 
-	updates = db.execute(
+	cursor.execute(
 		"""
 		SELECT status, location_name, latitude, longitude, notes, created_at
 		FROM tracking_updates
-		WHERE shipment_id = ?
+		WHERE shipment_id = %s
 		ORDER BY created_at ASC, id ASC
 		""",
 		(shipment_id,),
-	).fetchall()
+	)
+	updates = cursor.fetchall()
+	cursor.close()
 
 	return jsonify(
 		{
 			"shipment": dict(shipment),
-			"updates": [dict(row) for row in updates],
+			"updates": [
+				{**dict(row), "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], 'isoformat') else str(row["created_at"])}
+				for row in updates
+			],
 			"bounds": PH_BOUNDS,
 		}
 	)
@@ -538,28 +658,32 @@ def shipment_tracking_api(shipment_id):
 @app.route("/api/gps/start/<int:shipment_id>", methods=["POST"])
 def start_gps_tracking(shipment_id):
 	db = get_db()
-	shipment = db.execute(
-		"SELECT id FROM shipments WHERE id = ?", (shipment_id,)
-	).fetchone()
-	if not shipment:
+	cursor = db.cursor()
+
+	cursor.execute("SELECT id FROM shipments WHERE id = %s", (shipment_id,))
+	if not cursor.fetchone():
+		cursor.close()
 		return jsonify({"error": "Shipment not found"}), 404
 
-	existing = db.execute(
-		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = ? AND is_active = 1",
+	cursor.execute(
+		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = %s AND is_active = 1",
 		(shipment_id,),
-	).fetchone()
+	)
+	existing = cursor.fetchone()
 	if existing:
-		return jsonify({"session_id": existing["id"], "message": "GPS tracking already active"}), 200
+		cursor.close()
+		return jsonify({"session_id": existing[0], "message": "GPS tracking already active"}), 200
 
-	cursor = db.execute(
+	cursor.execute(
 		"""
-		INSERT INTO gps_tracking_sessions (shipment_id, is_active, created_at)
-		VALUES (?, 1, CURRENT_TIMESTAMP)
-		"""
-		, (shipment_id,)
+		INSERT INTO gps_tracking_sessions (shipment_id, is_active)
+		VALUES (%s, 1)
+		""",
+		(shipment_id,),
 	)
 	session_id = cursor.lastrowid
 	db.commit()
+	cursor.close()
 
 	return jsonify({"session_id": session_id, "message": "GPS tracking started"}), 201
 
@@ -567,28 +691,34 @@ def start_gps_tracking(shipment_id):
 @app.route("/api/gps/stop/<int:shipment_id>", methods=["POST"])
 def stop_gps_tracking(shipment_id):
 	db = get_db()
-	session = db.execute(
-		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = ? AND is_active = 1",
+	cursor = db.cursor()
+
+	cursor.execute(
+		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = %s AND is_active = 1",
 		(shipment_id,),
-	).fetchone()
+	)
+	session = cursor.fetchone()
 	if not session:
+		cursor.close()
 		return jsonify({"error": "No active GPS session"}), 404
 
-	db.execute(
+	cursor.execute(
 		"""
 		UPDATE gps_tracking_sessions
-		SET is_active = 0, ended_at = CURRENT_TIMESTAMP
-		WHERE id = ?
+		SET is_active = 0, ended_at = NOW()
+		WHERE id = %s
 		""",
-		(session["id"],),
+		(session[0],),
 	)
 	db.commit()
+	cursor.close()
 	return jsonify({"message": "GPS tracking stopped"}), 200
 
 
 @app.route("/api/gps/ping/<int:shipment_id>", methods=["POST"])
 def record_gps_ping(shipment_id):
 	db = get_db()
+	cursor = db.cursor()
 
 	try:
 		data = request.get_json()
@@ -597,34 +727,39 @@ def record_gps_ping(shipment_id):
 		accuracy = data.get("accuracy")
 		altitude = data.get("altitude")
 	except (ValueError, TypeError):
+		cursor.close()
 		return jsonify({"error": "Invalid GPS data"}), 400
 
 	if not is_within_philippines(latitude, longitude):
+		cursor.close()
 		return jsonify({"error": "Coordinates outside Philippines bounds"}), 400
 
-	session = db.execute(
-		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = ? AND is_active = 1",
+	cursor.execute(
+		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = %s AND is_active = 1",
 		(shipment_id,),
-	).fetchone()
+	)
+	session = cursor.fetchone()
 	if not session:
+		cursor.close()
 		return jsonify({"error": "No active GPS session"}), 404
 
-	db.execute(
+	cursor.execute(
 		"""
-		INSERT INTO gps_pings (session_id, latitude, longitude, accuracy_meters, altitude, created_at)
-		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		INSERT INTO gps_pings (session_id, latitude, longitude, accuracy_meters, altitude)
+		VALUES (%s, %s, %s, %s, %s)
 		""",
-		(session["id"], latitude, longitude, accuracy, altitude),
+		(session[0], latitude, longitude, accuracy, altitude),
 	)
-	db.execute(
+	cursor.execute(
 		"""
 		UPDATE shipments
-		SET last_lat = ?, last_lng = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ?
+		SET last_lat = %s, last_lng = %s
+		WHERE id = %s
 		""",
 		(latitude, longitude, shipment_id),
 	)
 	db.commit()
+	cursor.close()
 
 	return jsonify({"message": "GPS ping recorded"}), 201
 
@@ -632,33 +767,181 @@ def record_gps_ping(shipment_id):
 @app.route("/api/gps/live/<int:shipment_id>")
 def get_live_gps_data(shipment_id):
 	db = get_db()
-	session = db.execute(
-		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = ? AND is_active = 1",
+	cursor = db.cursor(dictionary=True)
+
+	cursor.execute(
+		"SELECT id FROM gps_tracking_sessions WHERE shipment_id = %s AND is_active = 1",
 		(shipment_id,),
-	).fetchone()
+	)
+	session = cursor.fetchone()
 	if not session:
+		cursor.close()
 		return jsonify({"error": "No active GPS session"}), 404
 
-	pings = db.execute(
+	cursor.execute(
 		"""
 		SELECT latitude, longitude, accuracy_meters, altitude, created_at
 		FROM gps_pings
-		WHERE session_id = ?
+		WHERE session_id = %s
 		ORDER BY created_at ASC
 		""",
 		(session["id"],),
-	).fetchall()
+	)
+	pings = cursor.fetchall()
+	cursor.close()
 
 	return jsonify(
 		{
 			"session_id": session["id"],
-			"pings": [dict(row) for row in pings],
+			"pings": [
+				{
+					**dict(row),
+					"latitude": float(row["latitude"]),
+					"longitude": float(row["longitude"]),
+					"accuracy_meters": float(row["accuracy_meters"]) if row["accuracy_meters"] else None,
+					"altitude": float(row["altitude"]) if row["altitude"] else None,
+					"created_at": row["created_at"].isoformat() if hasattr(row["created_at"], 'isoformat') else str(row["created_at"]),
+				}
+				for row in pings
+			],
 		}
 	), 200
 
 
-with app.app_context():
-	init_db()
+@app.route("/routes")
+def routes():
+	"""Display optimized delivery routes"""
+	db = get_db()
+	cursor = db.cursor(dictionary=True)
+	
+	# Auto-cancel overdue shipments
+	auto_cancel_overdue_shipments(db)
+	
+	# Get pending shipments (not yet In Transit)
+	cursor.execute(
+		"""
+		SELECT id, tracking_code, customer_name, origin, destination, priority, status,
+		       last_lat, last_lng, weight_kg, cargo_type
+		FROM shipments
+		WHERE status IN ('Booking Confirmed', 'Picked Up', 'At Origin Hub')
+		ORDER BY priority DESC, created_at ASC
+		LIMIT 50
+		"""
+	)
+	pending_shipments = cursor.fetchall()
+	
+	# Check for at-risk shipments (Booking Confirmed for 2+ days)
+	two_days_ago = (datetime.now() - timedelta(days=2)).isoformat()
+	cursor.execute(
+		"""
+		SELECT id, tracking_code, customer_name, destination, created_at FROM shipments
+		WHERE status = 'Booking Confirmed' AND created_at <= %s
+		""",
+		(two_days_ago,)
+	)
+	at_risk_shipments = cursor.fetchall()
+	
+	# Manila warehouse coordinates (central hub)
+	warehouse_lat, warehouse_lng = 14.5995, 120.9842
+	
+	# Prepare shipments for optimization - convert Decimal to float
+	shipments_for_opt = []
+	for ship in pending_shipments:
+		shipments_for_opt.append({
+			'id': ship['id'],
+			'tracking_code': ship['tracking_code'],
+			'customer_name': ship['customer_name'],
+			'destination': ship['destination'],
+			'priority': ship['priority'],
+			'cargo_type': ship['cargo_type'],
+			'weight_kg': float(ship['weight_kg']) if ship['weight_kg'] else 0,
+			'dest_lat': float(ship['last_lat']) if ship['last_lat'] else 0,
+			'dest_lng': float(ship['last_lng']) if ship['last_lng'] else 0
+		})
+	
+	# Generate optimized route
+	optimized_route = optimize_route_nearest_neighbor(shipments_for_opt, warehouse_lat, warehouse_lng)
+	route_metrics = calculate_route_metrics(optimized_route, warehouse_lat, warehouse_lng)
+	
+	# Add distance to each shipment in route
+	prev_lat, prev_lng = warehouse_lat, warehouse_lng
+	for i, ship in enumerate(optimized_route):
+		ship['distance_from_prev'] = round(haversine_distance(prev_lat, prev_lng, ship['dest_lat'], ship['dest_lng']), 2)
+		ship['delivery_time_hrs'] = round(estimate_delivery_time(ship['distance_from_prev']), 2)
+		ship['estimated_cost'] = estimate_delivery_cost(ship['distance_from_prev'], ship['priority'])
+		ship['route_sequence'] = i + 1
+		prev_lat, prev_lng = ship['dest_lat'], ship['dest_lng']
+	
+	cursor.close()
+	
+	return render_template(
+		'routes.html',
+		optimized_route=optimized_route,
+		route_metrics=route_metrics,
+		at_risk_shipments=at_risk_shipments,
+		pending_count=len(pending_shipments),
+		at_risk_count=len(at_risk_shipments),
+		warehouse_lat=warehouse_lat,
+		warehouse_lng=warehouse_lng,
+		now=datetime.now()
+	)
+
+
+@app.route("/api/routes/optimize", methods=["POST"])
+def optimize_routes_api():
+	"""API endpoint for route optimization"""
+	db = get_db()
+	cursor = db.cursor(dictionary=True)
+	
+	priority_filter = request.json.get('priority', 'all')
+	max_shipments = request.json.get('max_shipments', 50)
+	
+	# Build query based on priority
+	if priority_filter != 'all':
+		cursor.execute(
+			"""
+			SELECT id, tracking_code, customer_name, destination, priority, status, last_lat, last_lng
+			FROM shipments
+			WHERE status IN ('Booking Confirmed', 'Picked Up', 'At Origin Hub') AND priority = %s
+			LIMIT %s
+			""",
+			(priority_filter, max_shipments)
+		)
+	else:
+		cursor.execute(
+			"""
+			SELECT id, tracking_code, customer_name, destination, priority, status, last_lat, last_lng
+			FROM shipments
+			WHERE status IN ('Booking Confirmed', 'Picked Up', 'At Origin Hub')
+			LIMIT %s
+			""",
+			(max_shipments,)
+		)
+	
+	shipments = cursor.fetchall()
+	
+	warehouse_lat, warehouse_lng = 14.5995, 120.9842
+	
+	# Convert Decimal to float for optimization
+	shipments_for_opt = [{
+		'id': s['id'],
+		'tracking_code': s['tracking_code'],
+		'destination': s['destination'],
+		'priority': s['priority'],
+		'dest_lat': float(s['last_lat']) if s['last_lat'] else 0,
+		'dest_lng': float(s['last_lng']) if s['last_lng'] else 0
+	} for s in shipments]
+	
+	optimized_route = optimize_route_nearest_neighbor(shipments_for_opt, warehouse_lat, warehouse_lng)
+	route_metrics = calculate_route_metrics(optimized_route, warehouse_lat, warehouse_lng)
+	
+	cursor.close()
+	
+	return jsonify({
+		'route': optimized_route,
+		'metrics': route_metrics,
+		'shipment_count': len(optimized_route)
+	}), 200
 
 
 if __name__ == "__main__":
