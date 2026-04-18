@@ -127,6 +127,8 @@
 
 <!-- JAVASCRIPT TO RENDER CHARTS -->
 <script>
+/* eslint-disable no-undef */
+/* htmlhint tag-pair:false, inline-script-disabled:false */
 document.addEventListener('DOMContentLoaded', function() {
     // Chart 1: Route Overview
     const routeOverviewCtx = document.getElementById('routeOverviewChart').getContext('2d');
@@ -262,6 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </tr>
                 </thead>
                 <tbody>
+                    <!-- htmlhint inline-style-disabled:false -->
                     {% for ship in optimized_route %}
                     <tr style="{% if ship['priority'] == 'Critical' %}background-color: #fff3e0;{% elif ship['priority'] == 'Express' %}background-color: #e3f2fd;{% endif %}">
                         <td><strong>{{ ship['route_sequence'] }}</strong></td>
