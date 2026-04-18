@@ -1,0 +1,328 @@
+{% extends 'base.html' %}
+{% block title %}Track {{ shipment['tracking_code'] }} | FreightFlow PH{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <div>
+        <h1>Live Tracking: <code>{{ shipment['tracking_code'] }}</code></h1>
+        <p>{{ shipment['origin'] }} to {{ shipment['destination'] }} | Status: <strong>{{ shipment['status'] }}</strong></p>
+    </div>
+    <div class="action-buttons">
+        <a class="btn btn-secondary" href="{{ url_for('shipments') }}">Back to List</a>
+    </div>
+</section>
+
+<section class="grid tracking-grid">
+    <article class="card form-card">
+        <h2>GPS Real-Time Tracking</h2>
+        <div class="gps-status-box">
+            <div class="gps-indicator" id="gpsIndicator">
+                <span class="dot inactive"></span>
+                <span>GPS: Inactive</span>
+            </div>
+            <p class="gps-info" id="gpsInfo">Location data will appear here when GPS is active.</p>
+        </div>
+
+        <div class="gps-controls">
+            <button class="btn" id="startGpsBtn" type="button">Start GPS Tracking</button>
+            <button class="btn btn-secondary" id="stopGpsBtn" type="button" disabled>Stop GPS Tracking</button>
+        </div>
+
+        <hr>
+
+        <h3>Manual Tracking Update</h3>
+        <form class="smart-form" method="post">
+            <label>
+                Status
+                <input type="text" name="status" value="{{ shipment['status'] }}" required>
+            </label>
+            <label>
+                Location Name
+                <input type="text" name="location_name" required placeholder="e.g. Batangas Port">
+            </label>
+            <label>
+                Latitude (PH bounds: 4.5 to 21.5)
+                <input type="number" step="0.000001" name="latitude" required value="{{ shipment['last_lat'] if shipment['last_lat'] is not none else 14.599500 }}">
+            </label>
+            <label>
+                Longitude (PH bounds: 116.0 to 127.5)
+                <input type="number" step="0.000001" name="longitude" required value="{{ shipment['last_lng'] if shipment['last_lng'] is not none else 120.984200 }}">
+            </label>
+            <label>
+                Notes
+                <textarea name="notes" rows="3" placeholder="Checkpoint details"></textarea>
+            </label>
+            <div class="form-actions">
+                <button class="btn" type="submit">Save Manual Update</button>
+            </div>
+        </form>
+
+        <hr>
+
+        <h3>Advance Predefined Process</h3>
+        <form method="post" action="{{ url_for('advance_process', shipment_id=shipment['id']) }}">
+            <input type="hidden" name="location_name" value="{{ shipment['destination'] }}">
+            <input type="hidden" name="notes" value="Auto-advanced via predefined workflow.">
+            <button class="btn" type="submit" data-confirm="Move shipment to next process step?">Advance Step</button>
+        </form>
+    </article>
+
+    <article class="card">
+        <h2>Map Scope: Philippines (Real-Time)</h2>
+        <div id="tracking-map" class="map-canvas"></div>
+        <p class="muted">GPS pings update the map in real-time. Map is locked to Philippine geographic bounds.</p>
+    </article>
+</section>
+
+<section class="card">
+    <h2>Tracking Timeline</h2>
+    {% if updates %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Status</th>
+                        <th>Location</th>
+                        <th>Coordinates</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in updates %}
+                        <tr>
+                            <td>{{ row['created_at'] }}</td>
+                            <td><span class="badge">{{ row['status'] }}</span></td>
+                            <td>{{ row['location_name'] }}</td>
+                            <td>{{ '%.5f'|format(row['latitude']) }}, {{ '%.5f'|format(row['longitude']) }}</td>
+                            <td>{{ row['notes'] or '-' }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted">No tracking updates yet.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>GPS Pings Timeline</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Accuracy (m)</th>
+                </tr>
+            </thead>
+            <tbody id="gpsPingsTable">
+                <tr><td colspan="4" class="muted">No GPS pings yet. Start GPS tracking to see real-time data.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
+
+{% block script_extra %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+    const shipmentId = {{ shipment['id'] }};
+    const mapPoints = {{ map_points | tojson }};
+    const bounds = {{ ph_bounds | tojson }};
+
+    let gpsWatchId = null;
+    let gpsSessionId = null;
+    let map = null;
+    let routePolyline = null;
+    let liveMarkers = {};
+
+    // Initialize map
+    function initMap() {
+        map = L.map('tracking-map', {
+            minZoom: 6,
+            maxZoom: 13,
+            zoomControl: true
+        });
+
+        const philippinesBounds = L.latLngBounds(
+            [bounds.min_lat, bounds.min_lng],
+            [bounds.max_lat, bounds.max_lng]
+        );
+
+        map.setMaxBounds(philippinesBounds);
+        map.fitBounds(philippinesBounds);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Plot historical updates
+        if (mapPoints.length > 0) {
+            const route = mapPoints.map(p => [p.latitude, p.longitude]);
+            mapPoints.forEach((point, index) => {
+                const marker = L.marker([point.latitude, point.longitude])
+                    .bindPopup('<strong>' + point.status + '</strong><br>' + point.location_name + '<br>' + point.created_at)
+                    .addTo(map);
+                if (index === mapPoints.length - 1) {
+                    marker.openPopup();
+                }
+            });
+            routePolyline = L.polyline(route, { color: '#cbd5e1', weight: 3, opacity: 0.6 }).addTo(map);
+            map.fitBounds(L.latLngBounds(route), { padding: [25, 25] });
+        }
+    }
+
+    // Start GPS tracking
+    document.getElementById('startGpsBtn').addEventListener('click', async () => {
+        try {
+            const response = await fetch(`/api/gps/start/${shipmentId}`, { method: 'POST' });
+            if (!response.ok) throw new Error('Failed to start GPS tracking');
+            const data = await response.json();
+            gpsSessionId = data.session_id;
+
+            document.getElementById('startGpsBtn').disabled = true;
+            document.getElementById('stopGpsBtn').disabled = false;
+
+            updateGpsIndicator(true, 'GPS: Waiting for location...');
+
+            if (navigator.geolocation) {
+                gpsWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const { latitude, longitude, accuracy, altitude } = position.coords;
+                        recordGpsPing(latitude, longitude, accuracy, altitude);
+                    },
+                    (error) => {
+                        console.error('Geolocation error:', error);
+                        updateGpsIndicator(false, `Error: ${error.message}`);
+                    },
+                    { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser.');
+                stopGpsTracking();
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error starting GPS tracking');
+        }
+    });
+
+    // Stop GPS tracking
+    document.getElementById('stopGpsBtn').addEventListener('click', async () => {
+        await stopGpsTracking();
+    });
+
+    async function stopGpsTracking() {
+        try {
+            if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId);
+                gpsWatchId = null;
+            }
+            const response = await fetch(`/api/gps/stop/${shipmentId}`, { method: 'POST' });
+            if (!response.ok) throw new Error('Failed to stop GPS tracking');
+
+            document.getElementById('startGpsBtn').disabled = false;
+            document.getElementById('stopGpsBtn').disabled = true;
+            updateGpsIndicator(false, 'GPS: Inactive');
+        } catch (error) {
+            console.error(error);
+            alert('Error stopping GPS tracking');
+        }
+    }
+
+    async function recordGpsPing(latitude, longitude, accuracy, altitude) {
+        try {
+            const response = await fetch(`/api/gps/ping/${shipmentId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude, longitude, accuracy, altitude })
+            });
+
+            if (response.ok) {
+                updateGpsIndicator(true, `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} ± ${accuracy?.toFixed(1) || '?'}m`);
+                addLiveGpsMarker(latitude, longitude, accuracy);
+                updateGpsPingsTable();
+            }
+        } catch (error) {
+            console.error('Error recording GPS ping:', error);
+        }
+    }
+
+    function updateGpsIndicator(isActive, text) {
+        const indicator = document.getElementById('gpsIndicator');
+        const dot = indicator.querySelector('.dot');
+        if (isActive) {
+            dot.classList.remove('inactive');
+            dot.classList.add('active');
+        } else {
+            dot.classList.remove('active');
+            dot.classList.add('inactive');
+        }
+        indicator.querySelector('span:last-child').textContent = text;
+    }
+
+    function addLiveGpsMarker(latitude, longitude, accuracy) {
+        const key = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
+        if (liveMarkers[key]) {
+            map.removeLayer(liveMarkers[key]);
+        }
+
+        const marker = L.circleMarker([latitude, longitude], {
+            radius: 6,
+            fill: true,
+            fillColor: '#f97316',
+            color: '#ea580c',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).bindPopup(`Live location<br>${latitude.toFixed(5)}, ${longitude.toFixed(5)}<br>Accuracy: ±${accuracy?.toFixed(1) || '?'}m`)
+            .addTo(map);
+
+        liveMarkers[key] = marker;
+        marker.openPopup();
+
+        // Auto-zoom to latest location
+        map.setView([latitude, longitude], map.getZoom());
+    }
+
+    async function updateGpsPingsTable() {
+        try {
+            const response = await fetch(`/api/gps/live/${shipmentId}`);
+            if (!response.ok) return;
+            const data = await response.json();
+            
+            const tbody = document.getElementById('gpsPingsTable');
+            const pings = data.pings;
+
+            if (pings.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="muted">No GPS pings yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = pings.map(ping => `
+                <tr>
+                    <td>${ping.created_at}</td>
+                    <td>${parseFloat(ping.latitude).toFixed(5)}</td>
+                    <td>${parseFloat(ping.longitude).toFixed(5)}</td>
+                    <td>${ping.accuracy_meters ? parseFloat(ping.accuracy_meters).toFixed(1) : 'N/A'}</td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Error updating GPS pings table:', error);
+        }
+    }
+
+    // Initialize on load
+    initMap();
+})();
+</script>
+{% endblock %}

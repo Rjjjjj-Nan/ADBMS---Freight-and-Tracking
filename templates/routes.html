@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% block title %}AI Route Optimizer | FreightFlow PH{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block content %}
+<section class="panel intro-panel">
+    <div>
+        <h1>AI Route Optimizer</h1>
+        <p>Intelligent delivery route optimization using distance calculations, delivery time estimates, and cost analysis.</p>
+    </div>
+    <a class="btn" href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+</section>
+
+<!-- AT-RISK SHIPMENTS ALERT -->
+{% if at_risk_count > 0 %}
+<section style="background-color: #ffebee; border-left: 5px solid #f44336; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h3 style="color: #c62828; margin-top: 0;">⚠️ Warning: {{ at_risk_count }} Shipment{{ 's' if at_risk_count > 1 else '' }} at Risk of Auto-Cancellation</h3>
+    <p style="color: #d32f2f; margin: 10px 0;">Shipments in "Booking Confirmed" status for 3+ days will be automatically cancelled.</p>
+    
+    {% if at_risk_shipments %}
+    <div class="table-wrap" style="max-height: 300px; overflow-y: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tracking Code</th>
+                    <th>Customer</th>
+                    <th>Destination</th>
+                    <th>Days Pending</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ship in at_risk_shipments %}
+                <tr>
+                    <td><code>{{ ship['tracking_code'] }}</code></td>
+                    <td>{{ ship['customer_name'] }}</td>
+                    <td>{{ ship['destination'] }}</td>
+                    <td>
+                        {% set days_pending = (now - ship['created_at']).days %}
+                        <strong>{{ days_pending }} days</strong>
+                        {% if days_pending >= 3 %}<span style="color: red;"> (CANCELLED)</span>{% endif %}
+                    </td>
+                    <td><a href="{{ url_for('track_shipment', shipment_id=ship['id']) }}">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+
+<!-- ROUTE METRICS SUMMARY -->
+<section class="grid cards-grid">
+    <article class="card metric">
+        <h3>Total Distance</h3>
+        <p>{{ route_metrics.distance }} km</p>
+        <small>Optimized route coverage</small>
+    </article>
+    <article class="card metric">
+        <h3>Est. Delivery Time</h3>
+        <p>{{ route_metrics.time_hours }} hrs</p>
+        <small>Total route time</small>
+    </article>
+    <article class="card metric">
+        <h3>Est. Total Cost</h3>
+        <p>₱{{ "{:,.2f}".format(route_metrics.cost) }}</p>
+        <small>All deliveries</small>
+    </article>
+    <article class="card metric">
+        <h3>Shipments to Deliver</h3>
+        <p>{{ route_metrics.shipment_count }}</p>
+        <small>In optimized sequence</small>
+    </article>
+</section>
+
+<!-- MAP VIEW -->
+<section style="margin: 20px 0;">
+    <article class="card">
+        <h2>Route Map Visualization</h2>
+        <div id="route-map" style="height: 500px; background-color: #f5f5f5; border-radius: 4px; position: relative;">
+            <div style="position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #999;">
+                <p>Map loading...</p>
+            </div>
+        </div>
+    </article>
+</section>
+
+<!-- LIST VIEW WITH SEQUENCE -->
+<section style="margin: 20px 0;">
+    <article class="card">
+        <h2>Optimized Delivery Sequence</h2>
+        <p style="color: #666; font-size: 14px;">Following nearest-neighbor algorithm optimized for distance, time, and cost.</p>
+        
+        {% if optimized_route %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Tracking Code</th>
+                        <th>Destination</th>
+                        <th>Priority</th>
+                        <th>Distance</th>
+                        <th>Est. Time</th>
+                        <th>Est. Cost</th>
+                        <th>Cargo Type</th>
+                        <th>Weight</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ship in optimized_route %}
+                    <tr style="{% if ship['priority'] == 'Critical' %}background-color: #fff3e0;{% elif ship['priority'] == 'Express' %}background-color: #e3f2fd;{% endif %}">
+                        <td><strong>{{ ship['route_sequence'] }}</strong></td>
+                        <td><code>{{ ship['tracking_code'] }}</code></td>
+                        <td>{{ ship['destination'] }}</td>
+                        <td>
+                            <span class="badge" style="{% if ship['priority'] == 'Critical' %}background-color: #ff9800;{% elif ship['priority'] == 'Express' %}background-color: #2196F3;{% else %}background-color: #4CAF50;{% endif %} color: white;">
+                                {{ ship['priority'] }}
+                            </span>
+                        </td>
+                        <td>{{ ship['distance_from_prev'] }} km</td>
+                        <td>{{ ship['delivery_time_hrs'] }} hrs</td>
+                        <td>₱{{ "{:,.2f}".format(ship['estimated_cost']) }}</td>
+                        <td>{{ ship['cargo_type'] }}</td>
+                        <td>{{ ship['weight_kg'] }} kg</td>
+                        <td>
+                            <a class="text-link" href="{{ url_for('track_shipment', shipment_id=ship['id']) }}">Track</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ALGORITHM EXPLANATION -->
+        <div style="background-color: #f5f5f5; padding: 15px; margin-top: 20px; border-radius: 4px;">
+            <h4 style="margin-top: 0;">How the Route is Optimized</h4>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li><strong>Nearest Neighbor Algorithm:</strong> Starting from Manila (warehouse at 14.5995°N, 120.9842°E), the AI selects the closest unvisited destination, then builds the route sequentially.</li>
+                <li><strong>Distance Calculation:</strong> Uses Haversine formula to calculate great-circle distance between Philippine coordinates.</li>
+                <li><strong>Delivery Time Estimate:</strong> Based on 40 km/h average road speed + 1 hour processing per hub. Critical shipments get priority.</li>
+                <li><strong>Cost Estimation:</strong> ₱100 base + ₱5/km, with multipliers: Regular (1.0x), Express (1.5x), Critical (2.0x)</li>
+                <li><strong>Priority Coloring:</strong> Critical (orange) and Express (blue) shipments highlighted for visibility.</li>
+            </ul>
+        </div>
+
+        {% else %}
+        <p class="muted">No pending shipments to optimize. All current shipments are already in transit or delivered.</p>
+        {% endif %}
+    </article>
+</section>
+
+<!-- DECISION MAKING INFO -->
+<section style="margin: 20px 0;">
+    <article class="card" style="background-color: #e8f5e9; border-left: 4px solid #4CAF50;">
+        <h3 style="margin-top: 0; color: #2e7d32;">✓ Automated Decision Making</h3>
+        <p><strong>Auto-Cancellation Rule:</strong> Shipments in "Booking Confirmed" status for 3 or more days are <u>automatically cancelled</u> without manual intervention.</p>
+        
+        <h4>Benefits:</h4>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>Reduces operational waste on stalled bookings</li>
+            <li>Prevents customer dissatisfaction from prolonged delays</li>
+            <li>Frees up warehouse space and resources</li>
+            <li>Automatic process - no manual review needed</li>
+            <li>Cancelled shipments logged in tracking history</li>
+        </ul>
+
+        <div style="background-color: white; padding: 15px; border-radius: 4px; margin-top: 15px;">
+            <p style="margin: 0;"><strong>Last Auto-Cancellation Check:</strong> <em>Just now on dashboard load</em></p>
+        </div>
+    </article>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const mapElement = document.getElementById('route-map');
+    if (!mapElement) return;
+    
+    // Initialize Leaflet map
+    const map = L.map(mapElement).setView([13.0, 122.0], 6);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // Warehouse marker
+    const warehouse = L.circleMarker(
+        [{{ warehouse_lat }}, {{ warehouse_lng }}],
+        { radius: 10, fillColor: '#ff0000', color: '#333', weight: 2, opacity: 1, fillOpacity: 0.8 }
+    ).addTo(map);
+    warehouse.bindPopup('<strong>Manila Warehouse (Hub)</strong><br>{{ warehouse_lat }}, {{ warehouse_lng }}');
+    
+    // Route markers and polyline
+    const routePoints = [[{{ warehouse_lat }}, {{ warehouse_lng }}}];
+    const markers = [];
+    
+    {% for ship in optimized_route %}
+    const lat = {{ ship['dest_lat'] }};
+    const lng = {{ ship['dest_lng'] }};
+    routePoints.push([lat, lng]);
+    
+    const marker = L.circleMarker(
+        [lat, lng],
+        {
+            radius: 8,
+            fillColor: '#2196F3',
+            color: '#0d47a1',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }
+    ).addTo(map);
+    
+    marker.bindPopup(
+        '<strong>#{{ ship['route_sequence'] }} - {{ ship['destination'] }}</strong><br>' +
+        'Code: {{ ship['tracking_code'] }}<br>' +
+        'Distance: {{ ship['distance_from_prev'] }} km<br>' +
+        'Priority: {{ ship['priority'] }}'
+    );
+    markers.push(marker);
+    {% endfor %}
+    
+    // Draw route polyline
+    if (routePoints.length > 1) {
+        L.polyline(routePoints, {
+            color: '#2196F3',
+            weight: 2,
+            opacity: 0.7,
+            dashArray: '5, 5'
+        }).addTo(map);
+    }
+    
+    // Fit bounds
+    if (routePoints.length > 0) {
+        const group = new L.featureGroup([...markers, warehouse]);
+        map.fitBounds(group.getBounds(), { padding: [50, 50] });
+    }
+});
+</script>
+
+<style>
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+</style>
+{% endblock %}
