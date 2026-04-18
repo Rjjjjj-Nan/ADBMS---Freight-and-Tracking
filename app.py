@@ -107,9 +107,19 @@ def optimize_route_nearest_neighbor(shipments, warehouse_lat, warehouse_lng):
 
 
 def calculate_route_metrics(route, warehouse_lat, warehouse_lng):
-	"""Calculate total distance, time, and cost for a route"""
+	"""Calculate total distance, time, and cost for a route with useful business metrics"""
 	if not route:
-		return {"distance": 0, "time_hours": 0, "cost": 0, "shipment_count": 0}
+		return {
+			"distance": 0,
+			"time_hours": 0,
+			"cost": 0,
+			"shipment_count": 0,
+			"avg_delivery_time": 0,
+			"avg_cost_per_shipment": 0,
+			"avg_distance_per_delivery": 0,
+			"cost_per_km": 0,
+			"total_weight_kg": 0
+		}
 	
 	total_distance = 0
 	current_lat, current_lng = warehouse_lat, warehouse_lng
@@ -133,11 +143,24 @@ def calculate_route_metrics(route, warehouse_lat, warehouse_lng):
 		ship['priority']
 	) for ship in route)
 	
+	# Calculate useful business metrics
+	shipment_count = len(route)
+	total_weight = sum(ship.get('weight_kg', 0) for ship in route)
+	avg_delivery_time = round(time_hours / shipment_count, 2) if shipment_count > 0 else 0
+	avg_cost_per_shipment = round(cost / shipment_count, 2) if shipment_count > 0 else 0
+	avg_distance_per_delivery = round(total_distance / shipment_count, 2) if shipment_count > 0 else 0
+	cost_per_km = round(cost / total_distance, 2) if total_distance > 0 else 0
+	
 	return {
 		"distance": round(total_distance, 2),
 		"time_hours": round(time_hours, 2),
 		"cost": round(cost, 2),
-		"shipment_count": len(route)
+		"shipment_count": shipment_count,
+		"avg_delivery_time": avg_delivery_time,
+		"avg_cost_per_shipment": avg_cost_per_shipment,
+		"avg_distance_per_delivery": avg_distance_per_delivery,
+		"cost_per_km": cost_per_km,
+		"total_weight_kg": round(total_weight, 2)
 	}
 
 
