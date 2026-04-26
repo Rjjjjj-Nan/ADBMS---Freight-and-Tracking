@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Manage Couriers - Freight Logistics</title>
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+	<style>
+		body {
+			background-color: #f5f7fa;
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+		}
+		.container {
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 20px;
+		}
+		h1 {
+			color: #333;
+			margin-bottom: 30px;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+		.alert {
+			padding: 15px;
+			border-radius: 5px;
+			margin-bottom: 20px;
+		}
+		.alert-danger {
+			background-color: #f8d7da;
+			border: 1px solid #f5c6cb;
+			color: #721c24;
+		}
+		.alert-success {
+			background-color: #d4edda;
+			border: 1px solid #c3e6cb;
+			color: #155724;
+		}
+		.couriers-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+			gap: 20px;
+		}
+		.courier-card {
+			background: white;
+			border-radius: 8px;
+			padding: 20px;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+			transition: transform 0.2s, box-shadow 0.2s;
+		}
+		.courier-card:hover {
+			transform: translateY(-5px);
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		}
+		.courier-name {
+			font-size: 1.3rem;
+			font-weight: 600;
+			color: #333;
+			margin-bottom: 10px;
+		}
+		.courier-info {
+			font-size: 0.9rem;
+			color: #666;
+			margin-bottom: 5px;
+		}
+		.courier-stats {
+			margin-top: 15px;
+			padding-top: 15px;
+			border-top: 1px solid #eee;
+		}
+		.stat {
+			display: flex;
+			justify-content: space-between;
+			margin-bottom: 8px;
+			font-size: 0.9rem;
+		}
+		.stat-label {
+			color: #666;
+		}
+		.stat-value {
+			font-weight: 600;
+			color: #333;
+		}
+		.completion-rate {
+			font-size: 1.1rem;
+			color: #28a745;
+			font-weight: 600;
+		}
+		.badge {
+			display: inline-block;
+			padding: 4px 12px;
+			border-radius: 20px;
+			font-size: 0.8rem;
+			font-weight: 600;
+			margin-bottom: 10px;
+		}
+		.badge-active {
+			background-color: #d4edda;
+			color: #155724;
+		}
+		.badge-inactive {
+			background-color: #f8d7da;
+			color: #721c24;
+		}
+		.action-buttons {
+			display: flex;
+			gap: 10px;
+			margin-top: 15px;
+		}
+		.btn {
+			flex: 1;
+			padding: 8px 12px;
+			border: none;
+			border-radius: 4px;
+			font-size: 0.85rem;
+			cursor: pointer;
+			text-decoration: none;
+			text-align: center;
+			transition: opacity 0.2s;
+		}
+		.btn:hover {
+			opacity: 0.8;
+		}
+		.btn-primary {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+		}
+		.btn-secondary {
+			background-color: #6c757d;
+			color: white;
+		}
+		.empty-state {
+			text-align: center;
+			padding: 60px 20px;
+			color: #999;
+		}
+		.empty-state-icon {
+			font-size: 4rem;
+			margin-bottom: 20px;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>👥 Manage Couriers</h1>
+		
+		{% with messages = get_flashed_messages(with_categories=true) %}
+			{% if messages %}
+				{% for category, message in messages %}
+					<div class="alert alert-{{ category }}">{{ message }}</div>
+				{% endfor %}
+			{% endif %}
+		{% endwith %}
+		
+		{% if couriers %}
+		<div class="couriers-grid">
+			{% for courier in couriers %}
+			<div class="courier-card">
+				<span class="badge {% if courier.is_active %}badge-active{% else %}badge-inactive{% endif %}">
+					{% if courier.is_active %}✓ Active{% else %}✗ Inactive{% endif %}
+				</span>
+				
+				<div class="courier-name">{{ courier.full_name }}</div>
+				<div class="courier-info">📧 {{ courier.email }}</div>
+				<div class="courier-info">📱 {{ courier.phone or 'N/A' }}</div>
+				<div class="courier-info">📅 Since {{ courier.created_at.strftime('%b %d, %Y') }}</div>
+				
+				<div class="courier-stats">
+					<div class="stat">
+						<span class="stat-label">Assigned Shipments:</span>
+						<span class="stat-value">{{ courier.assigned_shipments or 0 }}</span>
+					</div>
+					<div class="stat">
+						<span class="stat-label">Completed Deliveries:</span>
+						<span class="stat-value">{{ courier.completed_deliveries or 0 }}</span>
+					</div>
+					<div class="stat">
+						<span class="stat-label">Completion Rate:</span>
+						<span class="completion-rate">{{ courier.completion_rate or 0 }}%</span>
+					</div>
+				</div>
+				
+				<div class="action-buttons">
+					<a href="{{ url_for('courier_performance_detail', courier_id=courier.id) }}" class="btn btn-primary">View Details</a>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+		{% else %}
+		<div class="empty-state">
+			<div class="empty-state-icon">📭</div>
+			<p>No couriers found. <a href="{{ url_for('register') }}">Register a courier</a></p>
+		</div>
+		{% endif %}
+		
+		<div style="margin-top: 30px; text-align: center;">
+			<a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="display: inline-block; padding: 10px 20px;">Back to Dashboard</a>
+		</div>
+	</div>
+</body>
+</html>

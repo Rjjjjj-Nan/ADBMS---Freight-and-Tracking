@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Shipments | FreightFlow PH{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <div>
+        <h1>Shipment Registry</h1>
+        <p>Search and manage all freight entries using predefined logistics processes.</p>
+    </div>
+    <form class="search-form" method="get" action="{{ url_for('shipments') }}">
+        <input type="text" name="q" placeholder="Search code, customer, origin, destination" value="{{ query }}">
+        <button class="btn" type="submit">Search</button>
+    </form>
+</section>
+
+<section class="card">
+    {% if shipments %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tracking</th>
+                        <th>Customer</th>
+                        <th>Route</th>
+                        <th>Cargo</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Expected</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in shipments %}
+                        <tr>
+                            <td><code>{{ row['tracking_code'] }}</code></td>
+                            <td>{{ row['customer_name'] }}</td>
+                            <td>{{ row['origin'] }} to {{ row['destination'] }}</td>
+                            <td>{{ row['cargo_type'] }}</td>
+                            <td>{{ row['priority'] }}</td>
+                            <td><span class="badge">{{ row['status'] }}</span></td>
+                            <td>{{ row['expected_delivery'] or 'N/A' }}</td>
+                            <td class="action-links">
+                                <a href="{{ url_for('track_shipment', shipment_id=row['id']) }}">Track</a>
+                                <a href="{{ url_for('edit_shipment', shipment_id=row['id']) }}">Edit</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted">No shipments found.</p>
+    {% endif %}
+</section>
+{% endblock %}

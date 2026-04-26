@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Login - Freight Logistics</title>
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+	<style>
+		body {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			min-height: 100vh;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+		}
+		.login-container {
+			background: white;
+			border-radius: 10px;
+			box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+			padding: 40px;
+			width: 100%;
+			max-width: 400px;
+		}
+		.login-container h1 {
+			color: #333;
+			margin-bottom: 10px;
+			text-align: center;
+		}
+		.login-container p {
+			text-align: center;
+			color: #666;
+			margin-bottom: 30px;
+			font-size: 0.95rem;
+		}
+		.form-group {
+			margin-bottom: 20px;
+		}
+		.form-group label {
+			display: block;
+			margin-bottom: 8px;
+			color: #333;
+			font-weight: 500;
+		}
+		.form-group input {
+			width: 100%;
+			padding: 12px;
+			border: 1px solid #ddd;
+			border-radius: 5px;
+			font-size: 1rem;
+			transition: border-color 0.3s;
+		}
+		.form-group input:focus {
+			outline: none;
+			border-color: #667eea;
+			box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+		}
+		.btn-login {
+			width: 100%;
+			padding: 12px;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+			border: none;
+			border-radius: 5px;
+			font-size: 1rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: transform 0.2s;
+		}
+		.btn-login:hover {
+			transform: translateY(-2px);
+		}
+		.register-link {
+			text-align: center;
+			margin-top: 20px;
+			color: #666;
+		}
+		.register-link a {
+			color: #667eea;
+			text-decoration: none;
+			font-weight: 600;
+		}
+		.register-link a:hover {
+			text-decoration: underline;
+		}
+		.alert {
+			padding: 12px;
+			border-radius: 5px;
+			margin-bottom: 20px;
+		}
+		.alert-danger {
+			background-color: #f8d7da;
+			border: 1px solid #f5c6cb;
+			color: #721c24;
+		}
+		.alert-success {
+			background-color: #d4edda;
+			border: 1px solid #c3e6cb;
+			color: #155724;
+		}
+	</style>
+</head>
+<body>
+	<div class="login-container">
+		<h1>🚚 Freight Logistics</h1>
+		<p>Secure Shipment Management System</p>
+		
+		{% with messages = get_flashed_messages(with_categories=true) %}
+			{% if messages %}
+				{% for category, message in messages %}
+					<div class="alert alert-{{ category }}">{{ message }}</div>
+				{% endfor %}
+			{% endif %}
+		{% endwith %}
+		
+		<form method="POST">
+			<div class="form-group">
+				<label for="username">Username:</label>
+				<input type="text" id="username" name="username" required autofocus>
+			</div>
+			
+			<div class="form-group">
+				<label for="password">Password:</label>
+				<input type="password" id="password" name="password" required>
+			</div>
+			
+			<button type="submit" class="btn-login">Login</button>
+		</form>
+		
+		<div class="register-link">
+			Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
+		</div>
+		
+		<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 0.85rem; color: #999; text-align: center;">
+			<p><strong>Demo Credentials:</strong></p>
+			<p>Username: admin | Password: admin123</p>
+		</div>
+	</div>
+</body>
+</html>

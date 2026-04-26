@@ -1,0 +1,389 @@
+:root {
+    --bg-1: #f7fbfc;
+    --bg-2: #e6f4f1;
+    --ink: #102a43;
+    --muted: #52606d;
+    --card: #ffffff;
+    --stroke: #d9e2ec;
+    --accent: #0f766e;
+    --accent-2: #f97316;
+    --ok: #15803d;
+    --error: #b91c1c;
+    --shadow: 0 12px 30px rgba(16, 42, 67, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    color: var(--ink);
+    background:
+        radial-gradient(circle at 10% 0%, #d5f3ec 0%, transparent 34%),
+        radial-gradient(circle at 90% 20%, #fde3cc 0%, transparent 28%),
+        linear-gradient(160deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    min-height: 100vh;
+}
+
+.page-shell {
+    width: min(1200px, 95vw);
+    margin: 1.5rem auto 2rem;
+}
+
+.topbar {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    padding: 1rem 1.2rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.brand-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(140deg, var(--accent), #14b8a6);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+}
+
+.brand-title {
+    margin: 0;
+    font-weight: 700;
+}
+
+.brand-subtitle {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.menu {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.menu a {
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.content-wrap {
+    margin-top: 1.25rem;
+    display: grid;
+    gap: 1rem;
+}
+
+.panel,
+.card {
+    background: var(--card);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+}
+
+.panel {
+    padding: 1rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.card {
+    padding: 1rem;
+}
+
+.grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.cards-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.split-grid {
+    grid-template-columns: 1fr 1fr;
+}
+
+.tracking-grid {
+    grid-template-columns: 360px 1fr;
+}
+
+.metric h3 {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.metric p {
+    margin: 0.35rem 0 0;
+    font-size: 1.9rem;
+    font-weight: 700;
+}
+
+h1,
+h2,
+h3 {
+    margin-top: 0;
+}
+
+.btn {
+    border: none;
+    background: linear-gradient(140deg, var(--accent), #0ea5a4);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    text-decoration: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-small {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.btn-secondary {
+    background: #eef2f6;
+    color: var(--ink);
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.flash-stack {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.flash {
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    font-weight: 500;
+}
+
+.flash-success {
+    background: #dcfce7;
+    color: var(--ok);
+    border: 1px solid #86efac;
+}
+
+.flash-error {
+    background: #fee2e2;
+    color: var(--error);
+    border: 1px solid #fca5a5;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 0.6rem;
+    border-bottom: 1px solid var(--stroke);
+    text-align: left;
+    font-size: 0.92rem;
+}
+
+.badge {
+    background: #ecfeff;
+    color: #155e75;
+    border: 1px solid #a5f3fc;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.8rem;
+}
+
+.status-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.55rem;
+}
+
+.status-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.6rem;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.search-form {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.search-form input,
+.smart-form input,
+.smart-form select,
+.smart-form textarea {
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--stroke);
+    border-radius: 10px;
+    font: inherit;
+}
+
+.form-grid {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.smart-form label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+}
+
+.form-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.action-links {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.action-links a,
+.text-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.map-canvas {
+    width: 100%;
+    height: 450px;
+    border-radius: 12px;
+    border: 1px solid var(--stroke);
+}
+
+code {
+    font-family: 'IBM Plex Mono', monospace;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--stroke);
+    margin: 1rem 0;
+}
+
+.gps-status-box {
+    background: #f0f9ff;
+    border: 2px solid #0ea5a4;
+    border-radius: 10px;
+    padding: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.gps-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot.active {
+    background-color: #15803d;
+    box-shadow: 0 0 8px rgba(21, 128, 61, 0.8);
+    animation: pulse 2s infinite;
+}
+
+.dot.inactive {
+    background-color: #d1d5db;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.gps-info {
+    margin: 0.5rem 0 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+}
+
+.gps-controls {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.gps-controls button {
+    flex: 1;
+    min-width: 150px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+    .cards-grid,
+    .split-grid,
+    .tracking-grid,
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .map-canvas {
+        height: 380px;
+    }
+}

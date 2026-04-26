@@ -1,0 +1,367 @@
+{% extends 'base.html' %}
+{% block title %}AI Route Optimizer | FreightFlow PH{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="panel intro-panel">
+    <div>
+        <h1>AI Route Optimizer</h1>
+        <p>Intelligent delivery route optimization using distance calculations, delivery time estimates, and cost analysis.</p>
+    </div>
+    <a class="btn" href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+</section>
+
+<!-- AT-RISK SHIPMENTS ALERT -->
+{% if at_risk_count > 0 %}
+<section style="background-color: #ffebee; border-left: 5px solid #f44336; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h3 style="color: #c62828; margin-top: 0;">⚠️ Warning: {{ at_risk_count }} Shipment{{ 's' if at_risk_count > 1 else '' }} at Risk of Auto-Cancellation</h3>
+    <p style="color: #d32f2f; margin: 10px 0;">Shipments in "Booking Confirmed" status for 3+ days will be automatically cancelled.</p>
+    
+    {% if at_risk_shipments %}
+    <div class="table-wrap" style="max-height: 300px; overflow-y: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tracking Code</th>
+                    <th>Customer</th>
+                    <th>Destination</th>
+                    <th>Days Pending</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ship in at_risk_shipments %}
+                <tr>
+                    <td><code>{{ ship['tracking_code'] }}</code></td>
+                    <td>{{ ship['customer_name'] }}</td>
+                    <td>{{ ship['destination'] }}</td>
+                    <td>
+                        {% set days_pending = (now - ship['created_at']).days %}
+                        <strong>{{ days_pending }} days</strong>
+                        {% if days_pending >= 3 %}<span style="color: red;"> (CANCELLED)</span>{% endif %}
+                    </td>
+                    <td><a href="{{ url_for('track_shipment', shipment_id=ship['id']) }}">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+
+<!-- ROUTE METRICS SUMMARY - VISUAL DASHBOARD -->
+<section style="margin: 20px 0;">
+    <article class="card">
+        <h2 style="margin-top: 0;">📊 Route Performance Dashboard</h2>
+        
+        <!-- CHARTS CONTAINER -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            
+            <!-- CHART 1: Route Overview (Aggregate Metrics) -->
+            <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; font-size: 14px; color: #666;">Route Overview</h3>
+                <canvas id="routeOverviewChart" style="max-height: 250px;"></canvas>
+            </div>
+
+            <!-- CHART 2: Efficiency Metrics (Per-Shipment) -->
+            <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; font-size: 14px; color: #666;">Per-Shipment Efficiency</h3>
+                <canvas id="efficiencyChart" style="max-height: 250px;"></canvas>
+            </div>
+
+            <!-- CHART 3: Cost Breakdown -->
+            <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; font-size: 14px; color: #666;">Cost Breakdown</h3>
+                <canvas id="costBreakdownChart" style="max-height: 250px;"></canvas>
+            </div>
+
+            <!-- CHART 4: Key Metrics Summary -->
+            <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; font-size: 14px; color: #666;">Key Metrics</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 6px;">
+                        <div style="font-size: 11px; opacity: 0.9;">Total Shipments</div>
+                        <div style="font-size: 24px; font-weight: bold;">{{ route_metrics.shipment_count }}</div>
+                    </div>
+                    <div style="padding: 10px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 6px;">
+                        <div style="font-size: 11px; opacity: 0.9;">Cost per KM</div>
+                        <div style="font-size: 24px; font-weight: bold;">₱{{ "{:.2f}".format(route_metrics.cost_per_km) }}</div>
+                    </div>
+                    <div style="padding: 10px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border-radius: 6px;">
+                        <div style="font-size: 11px; opacity: 0.9;">Avg Delivery Time</div>
+                        <div style="font-size: 24px; font-weight: bold;">{{ route_metrics.avg_delivery_time }}h</div>
+                    </div>
+                    <div style="padding: 10px; background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; border-radius: 6px;">
+                        <div style="font-size: 11px; opacity: 0.9;">Avg Cost per Shipment</div>
+                        <div style="font-size: 24px; font-weight: bold;">₱{{ "{:,.0f}".format(route_metrics.avg_cost_per_shipment) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- METRICS LEGEND -->
+        <div style="background-color: #f3e5f5; padding: 15px; margin-top: 20px; border-radius: 4px;">
+            <h4 style="margin-top: 0; color: #6a1b9a;">📊 What Each Chart Shows</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 13px;">
+                <div>
+                    <strong style="color: #667eea;">Route Overview:</strong> Total distance, time, cost, and weight for the entire route - use for budgeting and fuel planning.
+                </div>
+                <div>
+                    <strong style="color: #764ba2;">Efficiency Metrics:</strong> Average values per shipment - lower averages = better profitability and faster deliveries.
+                </div>
+                <div>
+                    <strong style="color: #f5576c;">Cost Breakdown:</strong> Shows what portion of total cost is fixed vs variable - helps identify cost-saving opportunities.
+                </div>
+                <div>
+                    <strong style="color: #43e97b;">Key Summary:</strong> Quick reference for critical business metrics - use for daily reporting and decision making.
+                </div>
+            </div>
+        </div>
+    </article>
+</section>
+
+<!-- JAVASCRIPT TO RENDER CHARTS -->
+<script>
+/* eslint-disable no-undef */
+/* htmlhint tag-pair:false, inline-script-disabled:false */
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart 1: Route Overview
+    const routeOverviewCtx = document.getElementById('routeOverviewChart').getContext('2d');
+    new Chart(routeOverviewCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Distance (km)', 'Time (hrs)', 'Cost (₱100s)', 'Weight (kg)'],
+            datasets: [{
+                label: 'Route Totals',
+                data: [
+                    {{ route_metrics.distance }},
+                    {{ route_metrics.time_hours }},
+                    {{ route_metrics.cost / 100 }},
+                    {{ route_metrics.total_weight_kg }}
+                ],
+                backgroundColor: [
+                    '#667eea',
+                    '#764ba2',
+                    '#f093fb',
+                    '#f5576c'
+                ],
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { beginAtZero: true }
+            }
+        }
+    });
+
+    // Chart 2: Efficiency Metrics
+    const efficiencyCtx = document.getElementById('efficiencyChart').getContext('2d');
+    new Chart(efficiencyCtx, {
+        type: 'radar',
+        data: {
+            labels: ['Avg Time (hrs)', 'Avg Cost (₱100s)', 'Avg Distance (km)', 'Shipments/Hour', 'Cost/KM (₱)'],
+            datasets: [{
+                label: 'Efficiency Metrics',
+                data: [
+                    {{ route_metrics.avg_delivery_time }},
+                    {{ route_metrics.avg_cost_per_shipment / 100 }},
+                    {{ route_metrics.avg_distance_per_delivery }},
+                    {% if route_metrics.time_hours > 0 %}{{ route_metrics.shipment_count / route_metrics.time_hours }}{% else %}0{% endif %},
+                    {{ route_metrics.cost_per_km }}
+                ],
+                borderColor: '#4facfe',
+                backgroundColor: 'rgba(79, 172, 254, 0.2)',
+                borderWidth: 2,
+                pointBackgroundColor: '#00f2fe',
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { labels: { font: { size: 12 } } }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    ticks: { font: { size: 10 } }
+                }
+            }
+        }
+    });
+
+    // Chart 3: Cost Breakdown
+    const costBreakdownCtx = document.getElementById('costBreakdownChart').getContext('2d');
+    const baseMultiplier = 100 * {{ route_metrics.shipment_count }};
+    const distanceCost = ({{ route_metrics.cost }} - baseMultiplier) * 100 / {{ route_metrics.cost if route_metrics.cost > 0 else 1 }};
+    new Chart(costBreakdownCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Base Cost (₱100/shipment)', 'Distance Cost (₱5/km)', 'Priority Surcharge'],
+            datasets: [{
+                data: [
+                    baseMultiplier,
+                    ({{ route_metrics.cost }} - baseMultiplier) * 0.8,
+                    ({{ route_metrics.cost }} - baseMultiplier) * 0.2
+                ],
+                backgroundColor: [
+                    '#43e97b',
+                    '#38f9d7',
+                    '#fa709a'
+                ],
+                borderColor: 'white',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { font: { size: 11 } }
+                }
+            }
+        }
+    });
+});
+</script>
+
+<!-- LIST VIEW WITH SEQUENCE -->
+<section style="margin: 20px 0;">
+    <article class="card">
+        <h2>Optimized Delivery Sequence</h2>
+        <p style="color: #666; font-size: 14px;">Following nearest-neighbor algorithm optimized for distance, time, and cost.</p>
+        
+        {% if optimized_route %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Tracking Code</th>
+                        <th>Destination</th>
+                        <th>Priority</th>
+                        <th>Distance</th>
+                        <th>Est. Time</th>
+                        <th>Est. Cost</th>
+                        <th>Cargo Type</th>
+                        <th>Weight</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- htmlhint inline-style-disabled:false -->
+                    {% for ship in optimized_route %}
+                    <tr style="{% if ship['priority'] == 'Critical' %}background-color: #fff3e0;{% elif ship['priority'] == 'Express' %}background-color: #e3f2fd;{% endif %}">
+                        <td><strong>{{ ship['route_sequence'] }}</strong></td>
+                        <td><code>{{ ship['tracking_code'] }}</code></td>
+                        <td>{{ ship['destination'] }}</td>
+                        <td>
+                            <span class="badge" style="{% if ship['priority'] == 'Critical' %}background-color: #ff9800;{% elif ship['priority'] == 'Express' %}background-color: #2196F3;{% else %}background-color: #4CAF50;{% endif %} color: white;">
+                                {{ ship['priority'] }}
+                            </span>
+                        </td>
+                        <td>{{ ship['distance_from_prev'] }} km</td>
+                        <td>{{ ship['delivery_time_hrs'] }} hrs</td>
+                        <td>₱{{ "{:,.2f}".format(ship['estimated_cost']) }}</td>
+                        <td>{{ ship['cargo_type'] }}</td>
+                        <td>{{ ship['weight_kg'] }} kg</td>
+                        <td>
+                            <a class="text-link" href="{{ url_for('track_shipment', shipment_id=ship['id']) }}">Track</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ALGORITHM EXPLANATION -->
+        <div style="background-color: #f5f5f5; padding: 15px; margin-top: 20px; border-radius: 4px;">
+            <h4 style="margin-top: 0;">How the Route is Optimized</h4>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li><strong>Nearest Neighbor Algorithm:</strong> Starting from Manila (warehouse at 14.5995°N, 120.9842°E), the AI selects the closest unvisited destination, then builds the route sequentially.</li>
+                <li><strong>Distance Calculation:</strong> Uses Haversine formula to calculate great-circle distance between Philippine coordinates.</li>
+                <li><strong>Delivery Time Estimate:</strong> Based on 40 km/h average road speed + 1 hour processing per hub. Critical shipments get priority.</li>
+                <li><strong>Cost Estimation:</strong> ₱100 base + ₱5/km, with multipliers: Regular (1.0x), Express (1.5x), Critical (2.0x)</li>
+                <li><strong>Priority Coloring:</strong> Critical (orange) and Express (blue) shipments highlighted for visibility.</li>
+            </ul>
+        </div>
+
+        <!-- METRICS PURPOSE EXPLANATION -->
+        <div style="background-color: #f3e5f5; padding: 15px; margin-top: 15px; border-radius: 4px;">
+            <h4 style="margin-top: 0; color: #6a1b9a;">📊 What Each Metric Means</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <strong style="color: #2e7d32;">Aggregate Metrics (Full Route)</strong>
+                    <ul style="margin: 8px 0; padding-left: 18px; font-size: 13px;">
+                        <li><strong>Total Distance:</strong> Fuel budget & environmental impact</li>
+                        <li><strong>Total Time:</strong> Staff shift planning & customer expectations</li>
+                        <li><strong>Total Cost:</strong> Revenue management & pricing decisions</li>
+                        <li><strong>Total Weight:</strong> Vehicle capacity & logistics planning</li>
+                    </ul>
+                </div>
+                <div>
+                    <strong style="color: #1565c0;">Efficiency Metrics (Per-Shipment Average)</strong>
+                    <ul style="margin: 8px 0; padding-left: 18px; font-size: 13px;">
+                        <li><strong>Avg Delivery Time:</strong> Performance benchmarking</li>
+                        <li><strong>Avg Cost/Shipment:</strong> Profitability per delivery</li>
+                        <li><strong>Avg Distance/Delivery:</strong> Route compactness score</li>
+                        <li><strong>Cost per km:</strong> Operational efficiency indicator</li>
+                    </ul>
+                </div>
+            </div>
+            <p style="margin: 10px 0; font-size: 12px; color: #555;"><strong>Use Case:</strong> Lower average cost per shipment and cost per km indicate a more efficient route, which improves profit margins and can justify competitive pricing.</p>
+        </div>
+
+        {% else %}
+        <p class="muted">No pending shipments to optimize. All current shipments are already in transit or delivered.</p>
+        {% endif %}
+    </article>
+</section>
+
+<!-- DECISION MAKING INFO -->
+<section style="margin: 20px 0;">
+    <article class="card" style="background-color: #e8f5e9; border-left: 4px solid #4CAF50;">
+        <h3 style="margin-top: 0; color: #2e7d32;">✓ Automated Decision Making</h3>
+        <p><strong>Auto-Cancellation Rule:</strong> Shipments in "Booking Confirmed" status for 3 or more days are <u>automatically cancelled</u> without manual intervention.</p>
+        
+        <h4>Benefits:</h4>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>Reduces operational waste on stalled bookings</li>
+            <li>Prevents customer dissatisfaction from prolonged delays</li>
+            <li>Frees up warehouse space and resources</li>
+            <li>Automatic process - no manual review needed</li>
+            <li>Cancelled shipments logged in tracking history</li>
+        </ul>
+
+        <div style="background-color: white; padding: 15px; border-radius: 4px; margin-top: 15px;">
+            <p style="margin: 0;"><strong>Last Auto-Cancellation Check:</strong> <em>Just now on dashboard load</em></p>
+        </div>
+    </article>
+</section>
+
+<style>
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+</style>
+{% endblock %}
