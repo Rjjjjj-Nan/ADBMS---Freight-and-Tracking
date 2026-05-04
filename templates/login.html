@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Freight & Logistics{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <h2 class="text-center mb-4 fw-bold">
+                        <i class="bi bi-box-seam" style="color: #667eea;"></i> Login
+                    </h2>
+
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <!-- Username Field -->
+                        <div class="mb-3">
+                            <label for="username" class="form-label fw-bold">Username</label>
+                            <input type="text" class="form-control form-control-lg" id="username" name="username" 
+                                   placeholder="Enter your username" required>
+                        </div>
+
+                        <!-- Password Field -->
+                        <div class="mb-3">
+                            <label for="password" class="form-label fw-bold">Password</label>
+                            <div class="position-relative">
+                                <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                       placeholder="Enter your password" required>
+                                <button type="button" class="btn btn-sm position-absolute end-0 top-50 translate-middle-y me-2" 
+                                        id="togglePassword" style="border: none; background: transparent; color: #667eea; cursor: pointer;">
+                                    <i class="bi bi-eye-slash" id="toggleIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Role Selection -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Login as:</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="role" id="role_user" value="user" checked>
+                                <label class="btn btn-outline-primary" for="role_user">
+                                    <i class="bi bi-person"></i> Customer
+                                </label>
+
+                                <input type="radio" class="btn-check" name="role" id="role_courier" value="courier">
+                                <label class="btn btn-outline-primary" for="role_courier">
+                                    <i class="bi bi-person-badge"></i> Courier
+                                </label>
+
+                                <input type="radio" class="btn-check" name="role" id="role_admin" value="admin">
+                                <label class="btn btn-outline-primary" for="role_admin">
+                                    <i class="bi bi-shield-check"></i> Admin
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Login Button -->
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                    </form>
+
+                    <hr>
+
+                    <!-- Register Link -->
+                    <p class="text-center mb-0">
+                        Don't have an account? <a href="{{ url_for('register') }}" class="fw-bold text-decoration-none">Register here</a>
+                    </p>
+
+                    <!-- Back to Home -->
+                    <p class="text-center mt-3">
+                        <a href="{{ url_for('index') }}" class="text-muted text-decoration-none">Back to Home</a>
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle password visibility
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordField = document.getElementById('password');
+        const toggleIcon = document.getElementById('toggleIcon');
+        
+        if (passwordField.type === 'password') {
+            passwordField.type = 'text';
+            toggleIcon.classList.remove('bi-eye-slash');
+            toggleIcon.classList.add('bi-eye');
+        } else {
+            passwordField.type = 'password';
+            toggleIcon.classList.remove('bi-eye');
+            toggleIcon.classList.add('bi-eye-slash');
+        }
+    });
+</script>
+
+{% endblock %}

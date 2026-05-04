@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - Freight & Logistics{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-1"><i class="bi bi-person-gear"></i> My Profile</h1>
+                    <p class="text-muted mb-0">Update your account details and save them to the database</p>
+                </div>
+                <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body text-center">
+                            <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px; font-size: 1.75rem;">
+                                <i class="bi bi-person"></i>
+                            </div>
+                            <h5 class="mb-1">{{ user.full_name or user.username }}</h5>
+                            <p class="text-muted mb-3">Customer Account</p>
+                            <div class="text-start small">
+                                <div class="mb-2"><strong>Username:</strong> {{ user.username }}</div>
+                                <div class="mb-2"><strong>Registered:</strong> {{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</div>
+                                <div><strong>Email:</strong> {{ user.email }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Edit Account Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ url_for('user_profile') }}">
+                                <div class="mb-3">
+                                    <label for="full_name" class="form-label fw-bold">Full Name *</label>
+                                    <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name or '' }}" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="email" class="form-label fw-bold">Email Address *</label>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ user.email or '' }}" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label fw-bold">Phone Number</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}" placeholder="09XXXXXXXXX">
+                                </div>
+
+                                <div class="mb-4">
+                                    <label for="address" class="form-label fw-bold">Address</label>
+                                    <textarea class="form-control" id="address" name="address" rows="3" placeholder="Your current address">{{ user.address or '' }}</textarea>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-save"></i> Save Changes
+                                    </button>
+                                    <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

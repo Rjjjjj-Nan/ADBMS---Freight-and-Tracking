@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}Courier Details - Freight & Logistics{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">
+                <i class="bi bi-person-badge"></i> Courier Profile
+            </h1>
+            <p class="text-muted">Detailed statistics and information</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('admin_couriers') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Courier Info Card -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="bi bi-person-circle" style="font-size: 4rem; color: #667eea;"></i>
+                    </div>
+                    <h4>{{ courier.full_name }}</h4>
+                    <p class="text-muted">@{{ courier.username }}</p>
+                    
+                    <div class="mb-3">
+                        {% if courier.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="text-start">
+                        <p><strong><i class="bi bi-envelope"></i> Email:</strong><br>{{ courier.email }}</p>
+                        <p><strong><i class="bi bi-telephone"></i> Phone:</strong><br>{{ courier.phone or 'N/A' }}</p>
+                        <p><strong><i class="bi bi-calendar"></i> Member Since:</strong><br>{{ courier.created_at.strftime('%B %d, %Y') if courier.created_at else 'N/A' }}</p>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('edit_courier', courier_id=courier.user_id) }}" class="btn btn-warning">
+                            <i class="bi bi-pencil"></i> Edit Information
+                        </a>
+                        {% if courier.is_active %}
+                            <button type="button" class="btn btn-danger" id="deactivateBtn" data-courier-id="{{ courier.user_id }}" data-name="{{ courier.full_name }}">
+                                <i class="bi bi-lock"></i> Deactivate
+                            </button>
+                        {% else %}
+                            <button type="button" class="btn btn-success" id="activateBtn" data-courier-id="{{ courier.user_id }}" data-name="{{ courier.full_name }}">
+                                <i class="bi bi-unlock"></i> Reactivate
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="col-md-8">
+            <div class="row mb-3">
+                <div class="col-sm-6 mb-3">
+                    <div class="card border-left-primary">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small">Total Parcels Assigned</h6>
+                            <h3 class="mb-0">{{ courier.total_parcels or 0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 mb-3">
+                    <div class="card border-left-success">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small">Successfully Delivered</h6>
+                            <h3 class="mb-0">{{ courier.delivered or 0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-6 mb-3">
+                    <div class="card border-left-info">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small">In Transit</h6>
+                            <h3 class="mb-0">{{ courier.in_transit or 0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 mb-3">
+                    <div class="card border-left-warning">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small">Pending</h6>
+                            <h3 class="mb-0">{{ courier.pending or 0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="card border-left-success">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small">Delivery Rate</h6>
+                            <h3 class="mb-0">{{ "%.1f" | format(courier.delivery_rate or 0) }}%</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="card border-left-danger">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small">Cancelled</h6>
+                            <h3 class="mb-0">{{ courier.cancelled or 0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-star-fill"></i> Customer Rating</h5>
+                </div>
+                <div class="card-body text-center py-5">
+                    {% if courier.avg_rating > 0 %}
+                        <h1 style="color: var(--warning-color);">⭐ {{ "%.1f" | format(courier.avg_rating) }}/5.0</h1>
+                        <p class="text-muted">Based on {{ courier.total_ratings }} customer review(s)</p>
+                    {% else %}
+                        <p class="text-muted py-3">No ratings yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Avg Delivery Time</h5>
+                </div>
+                <div class="card-body text-center py-5">
+                    <h2>{{ "%.1f" | format(courier.avg_delivery_days or 0) }}</h2>
+                    <p class="text-muted">days</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-cash"></i> Total Revenue</h5>
+                </div>
+                <div class="card-body text-center py-5">
+                    <h2>PHP {{ "%.2f" | format(courier.total_revenue or 0) }}</h2>
+                    <p class="text-muted">from deliveries</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Parcels -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-box"></i> Recent Parcels (Last 20)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tracking #</th>
+                                    <th>From → To</th>
+                                    <th>Sender/Receiver</th>
+                                    <th>Cost</th>
+                                    <th>Status</th>
+                                    <th>Booked</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if recent_parcels %}
+                                    {% for parcel in recent_parcels %}
+                                    <tr>
+                                        <td><strong>{{ parcel.tracking_number }}</strong></td>
+                                        <td>
+                                            <small>{{ parcel.origin_city }} → {{ parcel.destination_city }}</small>
+                                        </td>
+                                        <td>
+                                            <small>{{ parcel.sender_name }}<br>{{ parcel.receiver_name }}</small>
+                                        </td>
+                                        <td>PHP {{ "%.2f" | format(parcel.cost_php) }}</td>
+                                        <td>
+                                            {% if parcel.status == 'delivered' %}
+                                                <span class="badge bg-success">Delivered</span>
+                                            {% elif parcel.status == 'in_transit' %}
+                                                <span class="badge bg-info">In Transit</span>
+                                            {% elif parcel.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif parcel.status == 'cancelled' %}
+                                                <span class="badge bg-danger">Cancelled</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ parcel.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><small>{{ parcel.created_at.strftime('%m/%d/%Y') }}</small></td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No parcels assigned yet.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Reviews -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Customer Reviews (Last 10)</h5>
+                </div>
+                <div class="card-body">
+                    {% if ratings %}
+                        {% for rating in ratings %}
+                        <div class="mb-3 pb-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="mb-2">
+                                        {% for i in range(1, 6) %}
+                                            {% if i <= rating.rating_stars %}
+                                                <i class="bi bi-star-fill" style="color: var(--warning-color);"></i>
+                                            {% else %}
+                                                <i class="bi bi-star" style="color: #ddd;"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                        <strong class="ms-2">{{ rating.rating_stars }}.0/5.0</strong>
+                                    </div>
+                                    <p class="mb-1">{{ rating.review_text or 'No comment provided' }}</p>
+                                    <small class="text-muted">by {{ rating.full_name or 'Anonymous' }} • {{ rating.created_at.strftime('%B %d, %Y') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-chat-left-text"></i> No customer reviews yet.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deactivate Confirmation Modal -->
+<div class="modal fade" id="deactivateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deactivate Courier</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to deactivate <strong id="deactivateCourierName"></strong>?</p>
+                <p class="text-muted">The courier will not be able to accept new parcels, but their account data will be preserved.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">Deactivate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activate Confirmation Modal -->
+<div class="modal fade" id="activateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Reactivate Courier</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to reactivate <strong id="activateCourierName"></strong>?</p>
+                <p class="text-muted">The courier will be able to accept new parcels.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmActivateBtn">Reactivate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const deactivateModal = new bootstrap.Modal(document.getElementById('deactivateModal'));
+const activateModal = new bootstrap.Modal(document.getElementById('activateModal'));
+let selectedCourierId = null;
+
+document.getElementById('deactivateBtn').addEventListener('click', function() {
+    selectedCourierId = this.dataset.courierId;
+    document.getElementById('deactivateCourierName').textContent = this.dataset.name;
+    deactivateModal.show();
+});
+
+document.getElementById('activateBtn').addEventListener('click', function() {
+    selectedCourierId = this.dataset.courierId;
+    document.getElementById('activateCourierName').textContent = this.dataset.name;
+    activateModal.show();
+});
+
+document.getElementById('confirmDeactivateBtn').addEventListener('click', function() {
+    if (selectedCourierId) {
+        fetch(`/admin/couriers/${selectedCourierId}/deactivate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    deactivateModal.hide();
+});
+
+document.getElementById('confirmActivateBtn').addEventListener('click', function() {
+    if (selectedCourierId) {
+        fetch(`/admin/couriers/${selectedCourierId}/activate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    activateModal.hide();
+});
+</script>
+{% endblock %}
+
+<style>
+    .border-left-primary { border-left: 4px solid #667eea; }
+    .border-left-success { border-left: 4px solid #28a745; }
+    .border-left-info { border-left: 4px solid #17a2b8; }
+    .border-left-warning { border-left: 4px solid var(--warning-color); }
+    .border-left-danger { border-left: 4px solid #dc3545; }
+    .card-body h3 { color: #333; font-weight: 600; }
+</style>

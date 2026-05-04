@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Parcel - {{ parcel.tracking_number }}{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3"><i class="bi bi-pencil"></i> Edit Parcel Details</h1>
+            <p class="text-muted">Update receiver information for {{ parcel.tracking_number }}</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body p-5">
+                    <form method="POST" action="{{ url_for('edit_user_parcel', parcel_id=parcel.parcel_id) }}">
+                        <!-- Current Status -->
+                        <div class="alert alert-info mb-4" role="alert">
+                            <i class="bi bi-info-circle"></i> 
+                            Status: <strong>{{ parcel.status | title }}</strong>
+                            <br>
+                            <small>Only pending parcels can be edited. Once picked up, editing will be disabled.</small>
+                        </div>
+
+                        <!-- Receiver Information -->
+                        <div class="section-title mb-4">
+                            <h6 class="fw-bold text-uppercase"><i class="bi bi-inbox"></i> Receiver Information</h6>
+                            <hr>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="receiver_name" class="form-label fw-bold">Receiver Name *</label>
+                                <input type="text" class="form-control form-control-lg" id="receiver_name" name="receiver_name" 
+                                       value="{{ parcel.receiver_name }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="receiver_phone" class="form-label fw-bold">Receiver Phone *</label>
+                                <input type="tel" class="form-control form-control-lg" id="receiver_phone" name="receiver_phone" 
+                                       value="{{ parcel.receiver_phone }}" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="receiver_address" class="form-label fw-bold">Delivery Address *</label>
+                            <textarea class="form-control form-control-lg" id="receiver_address" name="receiver_address" 
+                                      rows="3" required>{{ parcel.receiver_address }}</textarea>
+                        </div>
+
+                        <!-- Destination -->
+                        <div class="section-title mb-4">
+                            <h6 class="fw-bold text-uppercase"><i class="bi bi-geo-alt"></i> Destination</h6>
+                            <hr>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="destination_city" class="form-label fw-bold">Destination City *</label>
+                            <input type="text" class="form-control form-control-lg" id="destination_city" name="destination_city" 
+                                   value="{{ parcel.destination_city }}" required>
+                        </div>
+
+                        <!-- Pickup Schedule -->
+                        <div class="section-title mb-4">
+                            <h6 class="fw-bold text-uppercase"><i class="bi bi-calendar-event"></i> Pickup Schedule</h6>
+                            <hr>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="scheduled_pickup_time" class="form-label fw-bold">Preferred Pickup Time (Optional)</label>
+                            <input type="datetime-local" class="form-control form-control-lg" id="scheduled_pickup_time" 
+                                   name="scheduled_pickup_time" value="{% if parcel.scheduled_pickup_time %}{{ parcel.scheduled_pickup_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                            <small class="text-muted">Leave empty if no specific time preference</small>
+                        </div>
+
+                        <!-- Additional Notes -->
+                        <div class="section-title mb-4">
+                            <h6 class="fw-bold text-uppercase"><i class="bi bi-chat-left-text"></i> Special Instructions</h6>
+                            <hr>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="notes" class="form-label fw-bold">Additional Notes (Optional)</label>
+                            <textarea class="form-control form-control-lg" id="notes" name="notes" 
+                                      rows="3">{{ parcel.notes or '' }}</textarea>
+                            <small class="text-muted">Any special handling instructions or delivery notes</small>
+                        </div>
+
+                        <!-- Current Information (Read-only) -->
+                        <div class="section-title mb-4">
+                            <h6 class="fw-bold text-uppercase"><i class="bi bi-info-circle"></i> Current Information</h6>
+                            <hr>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold">Tracking Number</label>
+                                <input type="text" class="form-control" value="{{ parcel.tracking_number }}" disabled>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold">Shipping Method</label>
+                                <input type="text" class="form-control" value="{{ parcel.shipping_method | title }}" disabled>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold">Weight</label>
+                                <input type="text" class="form-control" value="{{ parcel.weight_kg }} kg" disabled>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold">Cost</label>
+                                <input type="text" class="form-control" value="₱{{ parcel.cost_php }}" disabled>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle"></i> Save Changes
+                            </button>
+                            <a href="{{ url_for('user_parcel_detail', parcel_id=parcel.parcel_id) }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

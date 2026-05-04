@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Freight & Logistics{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <h2 class="text-center mb-4 fw-bold">
+                        <i class="bi bi-person-plus" style="color: #667eea;"></i> Register
+                    </h2>
+
+                    <form method="POST" action="{{ url_for('register') }}" id="registerForm" onsubmit="ensureRoleSelected()">
+                        <!-- Full Name -->
+                        <div class="mb-3">
+                            <label for="full_name" class="form-label fw-bold">Full Name</label>
+                            <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" 
+                                   placeholder="Juan Dela Cruz" required>
+                        </div>
+
+                        <!-- Username -->
+                        <div class="mb-3">
+                            <label for="username" class="form-label fw-bold">Username</label>
+                            <input type="text" class="form-control form-control-lg" id="username" name="username" 
+                                   placeholder="Enter username (min 4 chars)" required minlength="4">
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-3">
+                            <label for="email" class="form-label fw-bold">Email Address</label>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" 
+                                   placeholder="your@email.com" required>
+                        </div>
+
+                        <!-- Phone Number -->
+                        <div class="mb-3">
+                            <label for="phone" class="form-label fw-bold">Phone Number</label>
+                            <input type="tel" class="form-control form-control-lg" id="phone" name="phone" 
+                                   placeholder="09XXXXXXXXX">
+                        </div>
+
+                        <!-- Role Selection -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Register as:</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="role" id="role_user" value="user" checked>
+                                <label class="btn btn-outline-primary" for="role_user">
+                                    <i class="bi bi-person"></i> Customer
+                                </label>
+
+                                <input type="radio" class="btn-check" name="role" id="role_courier" value="courier">
+                                <label class="btn btn-outline-primary" for="role_courier">
+                                    <i class="bi bi-person-badge"></i> Courier
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Password -->
+                        <div class="mb-3">
+                            <label for="password" class="form-label fw-bold">Password</label>
+                            <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                   placeholder="Minimum 8 characters" required minlength="8">
+                            <small class="text-muted">Password must be at least 8 characters long</small>
+                        </div>
+
+                        <!-- Terms & Conditions -->
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="terms" required>
+                            <label class="form-check-label" for="terms">
+                                I agree to the <a href="#" class="text-decoration-none">Terms & Conditions</a> and 
+                                <a href="#" class="text-decoration-none">Privacy Policy</a>
+                            </label>
+                        </div>
+
+                        <!-- Register Button -->
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
+                            <i class="bi bi-person-check"></i> Create Account
+                        </button>
+                    </form>
+
+                    <hr>
+
+                    <!-- Login Link -->
+                    <p class="text-center mb-0">
+                        Already have an account? <a href="{{ url_for('login') }}" class="fw-bold text-decoration-none">Login here</a>
+                    </p>
+
+                    <!-- Back to Home -->
+                    <p class="text-center mt-3">
+                        <a href="{{ url_for('index') }}" class="text-muted text-decoration-none">Back to Home</a>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="alert alert-info mt-4 small" role="alert">
+                <strong>By registering, you'll have access to:</strong>
+                <ul class="mb-0">
+                    <li>Track your parcels in real-time</li>
+                    <li>Update parcel status and conditions</li>
+                    <li>Manage deliveries efficiently</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function ensureRoleSelected() {
+    const roleUser = document.getElementById('role_user');
+    const roleCourier = document.getElementById('role_courier');
+    
+    // If neither is selected, default to user (customer)
+    if (!roleUser.checked && !roleCourier.checked) {
+        roleUser.checked = true;
+    }
+    
+    return true; // Allow form submission
+}
+
+// Pre-select customer role on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const roleUser = document.getElementById('role_user');
+    if (roleUser) {
+        roleUser.checked = true;
+    }
+});
+</script>
+
+{% endblock %}

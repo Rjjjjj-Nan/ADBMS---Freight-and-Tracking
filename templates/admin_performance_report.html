@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Courier Performance Report - Freight & Logistics{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">
+                <i class="bi bi-bar-chart-line"></i> Courier Performance Report
+            </h1>
+            <p class="text-muted">Comprehensive performance metrics and analytics</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-primary">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Total Couriers</h6>
+                    <h3 class="mb-0">{{ stats.total_couriers }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-warning">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Avg Customer Rating</h6>
+                    <h3 class="mb-0">⭐ {{ "%.1f" | format(stats.avg_rating) }}</h3>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- Additional Metrics Row -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-success">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Total Delivered</h6>
+                    <h3 class="mb-0">{{ stats.total_delivered }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-info">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Total Parcels</h6>
+                    <h3 class="mb-0">{{ stats.total_parcels }}</h3>
+                </div>
+            </div>
+        </div>
+        
+        
+
+    <!-- Performance Table -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Performance Leaderboard</h5>
+            <small class="text-muted">Sorted by rating and delivery performance</small>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 5%;">Rank</th>
+                            <th style="width: 20%;">Courier Name</th>
+                            <th style="width: 10%;">Status</th>
+                            <th style="width: 12%;">Parcels</th>
+                            <th style="width: 12%;">Delivery Rate</th>
+                            <th style="width: 12%;">Rating</th>
+                            
+                            <th style="width: 12%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if couriers %}
+                            {% for loop_item in couriers %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">{{ loop.index }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ loop_item.full_name }}</strong><br>
+                                    <small class="text-muted">@{{ loop_item.username }}</small>
+                                </td>
+                                <td>
+                                    {% if loop_item.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>
+                                        <span class="badge bg-info">{{ loop_item.total_parcels or 0 }}</span>
+                                        <small class="text-muted">
+                                            ({{ loop_item.delivered or 0 }} delivered)
+                                        </small>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if loop_item.delivery_rate %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-success" role="progressbar" 
+                                                 style="width: {{ loop_item.delivery_rate }}%">
+                                                {{ "%.1f" | format(loop_item.delivery_rate) }}%
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if loop_item.avg_rating > 0 %}
+                                        <strong>⭐ {{ "%.1f" | format(loop_item.avg_rating) }}/5.0</strong><br>
+                                        <small class="text-muted">({{ loop_item.total_ratings }})</small>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">No ratings</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <td>
+                                    <a href="{{ url_for('view_courier_details', courier_id=loop_item.user_id) }}" 
+                                       class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox"></i> No courier data available.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Performers -->
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-star-fill"></i> Top Rated</h5>
+                </div>
+                <div class="card-body">
+                    {% if couriers %}
+                        {% for courier in couriers[:3] %}
+                        <div class="mb-3 pb-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong class="d-block">{{ courier.full_name }}</strong>
+                                    <span class="badge bg-warning">⭐ {{ "%.1f" | format(courier.avg_rating) }}/5</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No data available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-percent"></i> Highest Delivery Rate</h5>
+                </div>
+                <div class="card-body">
+                    {% if couriers %}
+                        {% for courier in couriers[:3] %}
+                        <div class="mb-3 pb-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong class="d-block">{{ courier.full_name }}</strong>
+                                    <span class="badge bg-success">{{ "%.1f" | format(courier.delivery_rate) }}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No data available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        
+    </div>
+</div>
+
+{% endblock %}
+
+<style>
+    .border-left-primary { border-left: 4px solid #667eea; }
+    .border-left-success { border-left: 4px solid #28a745; }
+    .border-left-warning { border-left: 4px solid var(--warning-color); }
+    .border-left-info { border-left: 4px solid #17a2b8; }
+    .card-body h3 { color: #333; font-weight: 600; }
+</style>

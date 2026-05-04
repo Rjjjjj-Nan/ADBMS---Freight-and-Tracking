@@ -1,0 +1,4 @@
+[courier_dashboard] user_id=1, session_keys=['full_name', 'role', 'user_id', 'username']
+[stored_results] Got 523 parcels
+[process_conditions] Processing 523 parcels
+[ERROR] 1146 (42S02): Table 'freight_logistics.parcel_conditions' doesn't exist

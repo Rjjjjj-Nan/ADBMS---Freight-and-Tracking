@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Freight & Logistics{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">
+                <i class="bi bi-speedometer2"></i> Admin Dashboard
+            </h1>
+            <p class="text-muted">System Overview & Analytics</p>
+        </div>
+        <div class="col-auto">
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('admin_couriers') }}" class="btn btn-sm btn-outline-primary" title="Manage Couriers">
+                    <i class="bi bi-people-fill"></i> Manage Couriers
+                </a>
+                <a href="{{ url_for('courier_performance_report') }}" class="btn btn-sm btn-outline-info" title="Performance Report">
+                    <i class="bi bi-bar-chart-line"></i> Performance
+                </a>
+                <a href="{{ url_for('courier_ratings_report') }}" class="btn btn-sm btn-outline-warning" title="Ratings Report">
+                    <i class="bi bi-star"></i> Ratings
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-primary">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Total Parcels</h6>
+                    <h3 class="mb-0">{{ stats.total_parcels or 0 }}</h3>
+                    <small class="text-muted">All parcels in system</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-success">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Delivered</h6>
+                    <h3 class="mb-0">{{ stats.delivered or 0 }}</h3>
+                    <small class="text-muted">Successfully delivered</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-info">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">In Transit</h6>
+                    <h3 class="mb-0">{{ stats.in_transit or 0 }}</h3>
+                    <small class="text-muted">Currently in delivery</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-warning">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted small">Total Revenue</h6>
+                    <h3 class="mb-0">PHP {{ "%.2f" | format(stats.total_revenue or 0) }}</h3>
+                    <small class="text-muted">All shipments</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Tables Row 1 -->
+    <div class="row mb-4">
+        <!-- Parcel Status Pie Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Parcels by Status</h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 320px; position: relative;">
+                        <canvas id="statusChart" style="width: 100%; height: 100%;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Deliveries Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Daily Deliveries (Last 30 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 320px; position: relative;">
+                        <canvas id="trendChart" style="width:100%; height:100%;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Tables Row 2 -->
+    <div class="row mb-4">
+        <!-- Courier Performance Table -->
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-person-badge"></i> Courier Performance & Ratings</h5>
+                    <a href="{{ url_for('admin_couriers') }}" class="btn btn-sm btn-primary"><i class="bi bi-gear"></i> Manage Couriers</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Courier Name</th>
+                                    <th class="text-center">Delivered</th>
+                                    <th class="text-center">Assigned</th>
+                                    <th class="text-center">Delivery Rate</th>
+                                    <th class="text-center">Rating</th>
+                                    <th class="text-center">Reviews</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if courier_performance %}
+                                    {% for c in courier_performance %}
+                                    <tr>
+                                        <td><strong>{{ c.full_name }}</strong><br><small class="text-muted">{{ c.username }}</small></td>
+                                        <td class="text-center"><span class="badge bg-success">{{ c.delivered or 0 }}</span></td>
+                                        <td class="text-center">{{ c.parcels_assigned or 0 }}</td>
+                                        <td class="text-center">
+                                            <span class="badge bg-info">{{ "%.1f" | format(c.delivery_rate or 0) }}%</span>
+                                        </td>
+                                        <td class="text-center">
+                                            {% if c.avg_rating > 0 %}
+                                                <span class="badge bg-warning">⭐ {{ "%.1f" | format(c.avg_rating) }}/5</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">No ratings</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">{{ c.total_ratings or 0 }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No courier data available yet.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Destinations -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Top Destinations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Destination</th>
+                                    <th class="text-end">Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if destinations %}
+                                    {% for dest in destinations %}
+                                    <tr>
+                                        <td>{{ dest.destination_city }}</td>
+                                        <td class="text-end"><span class="badge bg-primary">{{ dest.count }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted py-4">No destination data available yet.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metrics Summary -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Summary Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <h6 class="text-muted text-uppercase small">Avg Delivery Time</h6>
+                            <h3>{{ "%.1f" | format(stats.avg_delivery_time_days or 0) }} days</h3>
+                        </div>
+                        <div class="col-md-4 border-start border-end">
+                            <h6 class="text-muted text-uppercase small">Avg Cost per Parcel</h6>
+                            <h3>PHP {{ "%.2f" | format(stats.avg_cost or 0) }}</h3>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted text-uppercase small">Success Rate</h6>
+                            <h3>{{ "%.1f" | format(stats.success_rate_percent or 0) }}%</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+window.addEventListener('load', function () {
+    if (typeof Chart === 'undefined') return;
+
+    // Status Doughnut
+    (function(){
+        const ctx = document.getElementById('statusChart');
+        if (!ctx) return;
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Delivered','In Transit','Pending','Cancelled','Returned'],
+                datasets: [{
+                    data: [{{ stats.delivered or 0 }}, {{ stats.in_transit or 0 }}, {{ stats.pending or 0 }}, {{ stats.cancelled or 0 }}, {{ stats.returned or 0 }}],
+                    backgroundColor: ['#28a745','#17a2b8','#ea9e66','#dc3545','#6c757d'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, cutout: '55%', plugins: { legend: { position:'bottom' } } }
+        });
+    })();
+
+    // Daily Trend Line
+    (function(){
+        const ctx = document.getElementById('trendChart');
+        if (!ctx) return;
+        const labels = [
+            {% for item in daily_trend %}'{{ item.delivery_date }}',{% endfor %}
+        ];
+        const data = [
+            {% for item in daily_trend %}{{ item.count }},{% endfor %}
+        ];
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: [{ label: 'Deliveries', data: data, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.12)', fill:true, tension:0.3 }] },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+        });
+    })();
+});
+</script>
+{% endblock %}
+
+<style>
+    .border-left-primary { border-left: 4px solid #667eea; }
+    .border-left-success { border-left: 4px solid #28a745; }
+    .border-left-info { border-left: 4px solid #17a2b8; }
+    .border-left-warning { border-left: 4px solid var(--warning-color); }
+    .card-body h3 { color: #333; font-weight: 600; }
+
+    .table-responsive thead.sticky-top {
+        top: 0;
+        z-index: 1;
+    }
+</style>
+
+{% endblock %}

@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Parcel Details - Courier{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3"><i class="bi bi-box2"></i> Parcel Details</h1>
+            <p class="text-muted">Tracking #: <strong>{{ parcel.tracking_number }}</strong></p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('courier_dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Sender & Receiver Info -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-person"></i> Sender & Receiver</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">From (Sender)</h6>
+                            <p class="fw-bold mb-1">{{ parcel.sender_name }}</p>
+                            <p class="mb-1"><i class="bi bi-telephone"></i> {{ parcel.sender_phone or 'N/A' }}</p>
+                            <p class="small text-muted">{{ parcel.sender_address }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">To (Receiver)</h6>
+                            <p class="fw-bold mb-1">{{ parcel.receiver_name }}</p>
+                            <p class="mb-1"><i class="bi bi-telephone"></i> {{ parcel.receiver_phone or 'N/A' }}</p>
+                            <p class="small text-muted">{{ parcel.receiver_address }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parcel Details -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-box-seam"></i> Parcel Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Origin City</label>
+                            <p class="fw-bold">{{ parcel.origin_city }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Destination City</label>
+                            <p class="fw-bold">{{ parcel.destination_city }}</p>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Weight</label>
+                            <p class="fw-bold">{{ parcel.weight_kg or 'N/A' }} kg</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Shipping Cost</label>
+                            <p class="fw-bold">PHP {{ "%.2f" | format(parcel.cost_php) }}</p>
+                        </div>
+
+                        <div class="col-md-6 mb-0">
+                            <label class="text-muted small">Shipping Method</label>
+                            <p class="fw-bold">{{ parcel.shipping_method | replace('_', ' ') | title }}</p>
+                        </div>
+                        <div class="col-md-6 mb-0">
+                            <label class="text-muted small">Current Status</label>
+                            <p>
+                                <span class="badge 
+                                    {% if parcel.status == 'delivered' %}bg-success
+                                    {% elif parcel.status == 'in_transit' %}bg-info
+                                    {% elif parcel.status == 'pending' %}bg-warning text-dark
+                                    {% elif parcel.status == 'cancelled' %}bg-danger
+                                    {% elif parcel.status == 'returned' %}bg-secondary
+                                    {% endif %} p-2">
+                                    {{ parcel.status | replace('_', ' ') | title }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update Condition Form -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Update Parcel Condition</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('update_condition', parcel_id=parcel.parcel_id) }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Condition Status <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg" name="condition" required>
+                                <option value="">-- Select condition --</option>
+                                <option value="intact">Intact</option>
+                                <option value="damaged">Damaged</option>
+                                <option value="delayed">Delayed</option>
+                                <option value="lost">Lost</option>
+                                <option value="returned">Returned</option>
+                                <option value="in_transit">In Transit</option>
+                                <option value="delivered">Delivered</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Notes</label>
+                            <textarea class="form-control" name="notes" rows="4" 
+                                      placeholder="Add any relevant notes about the parcel condition..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Update Condition
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Condition History -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Condition History</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if conditions %}
+                    <div class="timeline">
+                        {% for cond in conditions %}
+                        <div class="timeline-item p-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <span class="badge bg-info">{{ cond.new_condition | replace('_', ' ') | title }}</span>
+                                    </h6>
+                                    {% if cond.notes %}
+                                    <p class="mb-1 text-muted">{{ cond.notes }}</p>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">{{ cond.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <p class="mt-2">No condition updates yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Quick Info -->
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Quick Info</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted small">Parcel ID</label>
+                        <p class="fw-bold">{{ parcel.parcel_id }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="text-muted small">Tracking Number</label>
+                        <p class="fw-bold text-break font-monospace">{{ parcel.tracking_number }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="text-muted small">Created Date</label>
+                        <p class="fw-bold">{{ parcel.created_at.strftime('%Y-%m-%d %H:%M') if parcel.created_at else 'N/A' }}</p>
+                    </div>
+
+                    <div>
+                        <label class="text-muted small">Last Updated</label>
+                        <p class="fw-bold">{{ parcel.updated_at.strftime('%Y-%m-%d %H:%M') if parcel.updated_at else 'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Legend -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Condition Guide</h5>
+                </div>
+                <div class="card-body small">
+                    <p><strong>Intact:</strong> Package in good condition</p>
+                    <p><strong>Damaged:</strong> Package shows signs of damage</p>
+                    <p><strong>Delayed:</strong> Delivery delayed</p>
+                    <p><strong>Lost:</strong> Package is lost</p>
+                    <p><strong>Returned:</strong> Package returned to sender</p>
+                    <p class="mb-0"><strong>In Transit:</strong> Package is on the way</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .timeline-item {
+        border-left: 3px solid #667eea;
+        padding-left: 15px;
+    }
+</style>
+
+{% endblock %}

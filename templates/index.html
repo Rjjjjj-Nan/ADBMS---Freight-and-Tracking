@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Freight & Logistics - Deliver Faster, Deliver Smarter{% endblock %}
+
+{% block content %}
+
+<!-- Wallpaper Carousel Hero Section -->
+<div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="5000" style="min-height: 600px;">
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="3" aria-label="Slide 4"></button>
+    </div>
+    
+    <div class="carousel-inner h-100">
+        <!-- Slide 1 -->
+        <div class="carousel-item active" style="min-height: 600px; background: linear-gradient(135deg, rgba(102,126,234,0.5) 0%, rgba(118,75,162,0.5) 100%), url('{{ url_for('static', filename='assets/pic1.png') }}'); background-size: cover; background-position: center;">
+            <div class="carousel-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.3);"></div>
+            <div class="d-flex align-items-center justify-content-center h-100 position-relative" style="z-index: 1;">
+                <div class="text-white container text-md-start" style="max-width:50%;">
+                    <h1 class="display-2 fw-bold mb-3"><i class="bi bi-lightning-fill" style="color: #FFD700;"></i> Your Summer Made SUPER</h1>
+                    <h2 class="display-6 text-light mb-4">Deliver Faster, Deliver Smarter!</h2>
+                    <p class="lead mb-4">Fast, reliable, and affordable delivery services across the Philippines</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div class="carousel-item" style="min-height: 600px; background: url('{{ url_for('static', filename='assets/pic2.png') }}'); background-size: cover; background-position: center;">
+            <div class="carousel-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4);"></div>
+            <div class="d-flex align-items-center justify-content-center h-100 position-relative" style="z-index: 1;">
+                <div class="text-center text-white container">
+                    {% if not session.user_id %}
+                        <a href="{{ url_for('register') }}" class="btn btn-warning btn-lg fw-bold"><i class="bi bi-rocket-fill"></i> Start Shipping Now</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div class="carousel-item" style="min-height: 600px; background: url('{{ url_for('static', filename='assets/pic3.png') }}'); background-size: cover; background-position: center;">
+            <div class="carousel-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.3);"></div>
+            <div class="d-flex align-items-center justify-content-center h-100 position-relative" style="z-index: 1;">
+            </div>
+        </div>
+
+        <!-- Slide 4 -->
+        <div class="carousel-item" style="min-height: 600px; background: url('{{ url_for('static', filename='assets/pic4.png') }}'); background-size: cover; background-position: center;">
+            <div class="carousel-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.3);"></div>
+            <div class="d-flex align-items-center justify-content-center h-100 position-relative" style="z-index: 1;">
+                <div class="text-center text-white container">
+                    {% if not session.user_id %}
+                        <a href="{{ url_for('login') }}" class="btn btn-light btn-lg fw-bold"><i class="bi bi-key-fill"></i> Login Now</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Previous/Next Controls -->
+    <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev" style="width: 5%; background: rgba(0,0,0,0.2);">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next" style="width: 5%; background: rgba(0,0,0,0.2);">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
+</div>
+
+<!-- Call-to-Action Bar -->
+<div class="py-3 bg-dark text-white text-center" style="background: linear-gradient(90deg, #FF6B35 0%, #F7931E 100%);">
+    <div class="container">
+        <h5 class="mb-0"><i class="bi bi-telephone-fill"></i> Available 24/7 | Free Pickups | Nationwide Coverage</h5>
+    </div>
+</div>
+
+<!-- Services Section -->
+<section class="services-section py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">Our Services</h2>
+        <div class="row">
+            <!-- Service 1 -->
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body text-center">
+                        <i class="bi bi-truck" style="font-size: 3rem; color: #667eea;"></i>
+                        <h5 class="card-title mt-3">Standard Shipping</h5>
+                        <p class="card-text text-muted">Deliver your parcels within 1-3 days depending on location. Affordable and reliable.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service 2 -->
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body text-center">
+                        <i class="bi bi-lightning" style="font-size: 3rem; color: #f093fb;"></i>
+                        <h5 class="card-title mt-3">Express Delivery</h5>
+                        <p class="card-text text-muted">Fast-track your shipments with our express service. Priority handling guaranteed.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service 3 -->
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body text-center">
+                        <i class="bi bi-airplane" style="font-size: 3rem; color: #4facfe;"></i>
+                        <h5 class="card-title mt-3">International Shipping</h5>
+                        <p class="card-text text-muted">Ship to Southeast Asia including Indonesia, Malaysia, Singapore & Thailand.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service 4 -->
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body text-center">
+                        <i class="bi bi-shield-check" style="font-size: 3rem; color: #43e97b;"></i>
+                        <h5 class="card-title mt-3">VIP Account</h5>
+                        <p class="card-text text-muted">Premium services with cash-on-delivery, tracking, and exclusive dashboard.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Why Choose Us?</h2>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="feature-item">
+                    <div class="feature-icon mb-3">
+                        <i class="bi bi-clock-history" style="font-size: 2.5rem; color: #667eea;"></i>
+                    </div>
+                    <h5>Real-Time Tracking</h5>
+                    <p class="text-muted">Track your parcels in real-time with our advanced tracking system.</p>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4">
+                <div class="feature-item">
+                    <div class="feature-icon mb-3">
+                        <i class="bi bi-geo-alt" style="font-size: 2.5rem; color: #f093fb;"></i>
+                    </div>
+                    <h5>Nationwide Coverage</h5>
+                    <p class="text-muted">Deliver to anywhere in the Philippines with 365 days of operation.</p>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4">
+                <div class="feature-item">
+                    <div class="feature-icon mb-3">
+                        <i class="bi bi-telephone" style="font-size: 2.5rem; color: #4facfe;"></i>
+                    </div>
+                    <h5>24/7 Support</h5>
+                    <p class="text-muted">Round-the-clock customer service to assist with your delivery needs.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing Section -->
+<section class="pricing-section py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">Simple & Transparent Pricing</h2>
+        <div class="row justify-content-center">
+            <!-- Pricing Card 1 -->
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 border-0 shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">Small Parcel</h5>
+                        <p class="text-muted small">Up to 3kg (Envelope)</p>
+                        <h3 class="text-primary">PHP 99</h3>
+                        <ul class="list-unstyled small">
+                            <li><i class="bi bi-check-circle text-success"></i> Standard Shipping</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Real-time Tracking</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Door-to-Door Delivery</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Card 2 -->
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 border-0 shadow" style="border-top: 3px solid #667eea;">
+                    <div class="card-body">
+                        <div class="badge bg-primary mb-2">Most Popular</div>
+                        <h5 class="card-title">Medium Parcel</h5>
+                        <p class="text-muted small">Up to 5kg (A4)</p>
+                        <h3 class="text-primary">PHP 149</h3>
+                        <ul class="list-unstyled small">
+                            <li><i class="bi bi-check-circle text-success"></i> Express Shipping</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Real-time Tracking</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Insurance Included</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Card 3 -->
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 border-0 shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">Large Parcel</h5>
+                        <p class="text-muted small">Up to 8kg (A3)</p>
+                        <h3 class="text-primary">PHP 249</h3>
+                        <ul class="list-unstyled small">
+                            <li><i class="bi bi-check-circle text-success"></i> Super Fast Shipping</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Priority Handling</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Full Insurance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Testimonials Section -->
+<section class="testimonials-section py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">What Our Customers Say</h2>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="testimonial-card card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                        </div>
+                        <p class="card-text">"Fast delivery, great service! I've been using this service for months and never had any issues."</p>
+                        <h6 class="card-subtitle text-muted">- Maria Santos</h6>
+                        <small class="text-muted">Online Store Owner</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4">
+                <div class="testimonial-card card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                        </div>
+                        <p class="card-text">"Reliable and affordable. The tracking system is excellent, and customer support is always helpful."</p>
+                        <h6 class="card-subtitle text-muted">- Juan Dela Cruz</h6>
+                        <small class="text-muted">E-commerce Entrepreneur</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4">
+                <div class="testimonial-card card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                        </div>
+                        <p class="card-text">"Best courier service I've used. Packages arrive on time, and the rates are very competitive."</p>
+                        <h6 class="card-subtitle text-muted">- Rosa Garcia</h6>
+                        <small class="text-muted">Small Business Owner</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section py-5" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <div class="container text-center">
+        <h2 class="mb-4">Ready to Get Started?</h2>
+        <p class="lead mb-4">Join thousands of satisfied customers using our service</p>
+        {% if not session.user_id %}
+            <a href="{{ url_for('register') }}" class="btn btn-light btn-lg"><i class="bi bi-person-plus"></i> Create Account</a>
+        {% endif %}
+    </div>
+</section>
+
+{% endblock %}
