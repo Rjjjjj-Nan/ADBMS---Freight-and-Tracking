@@ -190,6 +190,45 @@
                     </div>
                     {% endif %}
 
+                    {% if parcel.status == 'delivered' %}
+                    <hr>
+                    <div class="text-start">
+                        <h6 class="fw-bold mb-2"><i class="bi bi-star-fill text-warning"></i> Rate This Courier</h6>
+                        <form method="POST" action="{{ url_for('rate_courier', parcel_id=parcel.parcel_id) }}" class="rating-form">
+                            <div class="mb-3 rating-input-group">
+                                <input type="hidden" name="rating_stars" id="rating-stars-input" value="5">
+                                <div class="star-rating d-flex flex-row-reverse justify-content-end gap-1">
+                                    <input type="radio" id="star5" name="rating_choice" value="5" checked>
+                                    <label for="star5" class="star-label" title="5 stars"><i class="bi bi-star-fill"></i></label>
+
+                                    <input type="radio" id="star4" name="rating_choice" value="4">
+                                    <label for="star4" class="star-label" title="4 stars"><i class="bi bi-star-fill"></i></label>
+
+                                    <input type="radio" id="star3" name="rating_choice" value="3">
+                                    <label for="star3" class="star-label" title="3 stars"><i class="bi bi-star-fill"></i></label>
+
+                                    <input type="radio" id="star2" name="rating_choice" value="2">
+                                    <label for="star2" class="star-label" title="2 stars"><i class="bi bi-star-fill"></i></label>
+
+                                    <input type="radio" id="star1" name="rating_choice" value="1">
+                                    <label for="star1" class="star-label" title="1 star"><i class="bi bi-star-fill"></i></label>
+                                </div>
+                                <div class="d-flex justify-content-between mt-2 small text-muted">
+                                    <span>1 star</span>
+                                    <span>5 stars</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="review_text" class="form-label small fw-semibold">Review</label>
+                                <textarea class="form-control" name="review_text" id="review_text" rows="3" placeholder="Share your experience with this courier (optional)"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100 fw-semibold">
+                                <i class="bi bi-send"></i> Submit Rating
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+
                     <hr>
 
                     <div class="mb-3">
@@ -319,9 +358,42 @@
         left: 0;
         top: 0;
     }
+
+    .star-rating input {
+        display: none;
+    }
+
+    .star-label {
+        cursor: pointer;
+        color: #d1d5db;
+        font-size: 1.5rem;
+        line-height: 1;
+        transition: color 0.15s ease, transform 0.15s ease;
+    }
+
+    .star-rating input:checked ~ label,
+    .star-rating label:hover,
+    .star-rating label:hover ~ label {
+        color: #f5b301;
+    }
+
+    .star-label:hover {
+        transform: translateY(-1px);
+    }
 </style>
 
 <script>
+    const starInput = document.getElementById('rating-stars-input');
+    const ratingChoiceInputs = document.querySelectorAll('input[name="rating_choice"]');
+
+    ratingChoiceInputs.forEach((input) => {
+        input.addEventListener('change', function() {
+            if (starInput) {
+                starInput.value = this.value;
+            }
+        });
+    });
+
     function cancelParcel() {
         const parcelId = {{ parcel.parcel_id }};
         

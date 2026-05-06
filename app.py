@@ -7,12 +7,23 @@ import mysql.connector
 from mysql.connector import Error
 import bcrypt
 from dotenv import load_dotenv
+from flask_mail import Mail, Message
 
 load_dotenv()
 
 # Flask App Configuration
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Flask-Mail Configuration
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@freight-logistics.com')
+
+mail = Mail(app)
 
 # MySQL Configuration
 mysql_config = {
@@ -154,6 +165,159 @@ def require_user(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+
+def send_booking_confirmation_email(user_email, user_name, parcel):
+    """Send booking confirmation email with parcel details"""
+    if not user_email:
+        print("No email address provided, skipping email")
+        return False
+    
+    try:
+        status_text = parcel['status'].replace('_', ' ').title()
+        shipping_method_text = parcel['shipping_method'].replace('_', ' ').title()
+        booking_date_text = parcel['created_at'].strftime('%B %d, %Y at %I:%M %p')
+        tracking_url = f"http://127.0.0.1:5000/user/parcel/{parcel['parcel_id']}"
+        subject = f"Booking Confirmation - Tracking #{parcel['tracking_number']}"
+
+        body = f"""Dear {user_name},
+
+Your booking has been confirmed. Please find your receipt below.
+
+Booking receipt
+Tracking Number: {parcel['tracking_number']}
+Status: {status_text}
+Booking Date: {booking_date_text}
+
+Sender
+Name: {parcel['sender_name']}
+Phone: {parcel['sender_phone']}
+Address: {parcel['sender_address']}
+
+Receiver
+Name: {parcel['receiver_name']}
+Phone: {parcel['receiver_phone']}
+Address: {parcel['receiver_address']}
+
+Shipment
+From: {parcel['origin_city']}
+To: {parcel['destination_city']}
+Weight: {parcel['weight_kg']} kg
+Shipping Method: {shipping_method_text}
+Cost: PHP {parcel['cost_php']:.2f}
+
+Track your parcel: {tracking_url}
+
+For inquiries: info@freight.com | (02) 8911-1888
+
+Freight & Logistics Team"""
+
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+    <div style="max-width:680px;margin:0 auto;padding:24px;">
+        <div style="background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff;border-radius:18px 18px 0 0;padding:28px 30px;box-shadow:0 10px 30px rgba(15,23,42,.18);">
+            <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.85;">Freight & Logistics</div>
+            <div style="font-size:28px;font-weight:700;margin-top:8px;">Booking Receipt</div>
+            <div style="font-size:14px;opacity:.9;margin-top:8px;">Your parcel booking is confirmed.</div>
+        </div>
+
+        <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 18px 18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.08);">
+            <div style="padding:24px 30px 18px;border-bottom:1px dashed #d1d5db;">
+                <div style="font-size:15px;margin-bottom:10px;">Dear {user_name},</div>
+                <div style="font-size:14px;line-height:1.6;color:#4b5563;">Thank you for booking with Freight & Logistics. Below is your receipt-style summary for easy reference.</div>
+            </div>
+
+            <div style="padding:22px 30px;border-bottom:1px dashed #d1d5db;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">Tracking Number</div>
+                    <div style="font-size:20px;font-weight:700;color:#111827;">#{parcel['tracking_number']}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">Status</div>
+                    <div style="display:inline-block;margin-top:6px;background:#dcfce7;color:#166534;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px;">{status_text}</div>
+                </div>
+            </div>
+
+            <div style="padding:22px 30px;border-bottom:1px dashed #d1d5db;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                    <tr>
+                        <td style="width:50%;vertical-align:top;padding-right:10px;">
+                            <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Sender</div>
+                            <div style="font-size:14px;line-height:1.7;color:#111827;">
+                                <strong>{parcel['sender_name']}</strong><br>
+                                {parcel['sender_phone']}<br>
+                                {parcel['sender_address']}
+                            </div>
+                        </td>
+                        <td style="width:50%;vertical-align:top;padding-left:10px;">
+                            <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Receiver</div>
+                            <div style="font-size:14px;line-height:1.7;color:#111827;">
+                                <strong>{parcel['receiver_name']}</strong><br>
+                                {parcel['receiver_phone']}<br>
+                                {parcel['receiver_address']}
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="padding:22px 30px;border-bottom:1px dashed #d1d5db;">
+                <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;margin-bottom:12px;">Shipment Details</div>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+                    <tr>
+                        <td style="padding:8px 0;color:#6b7280;">From</td>
+                        <td style="padding:8px 0;text-align:right;font-weight:600;color:#111827;">{parcel['origin_city']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px 0;color:#6b7280;">To</td>
+                        <td style="padding:8px 0;text-align:right;font-weight:600;color:#111827;">{parcel['destination_city']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px 0;color:#6b7280;">Weight</td>
+                        <td style="padding:8px 0;text-align:right;font-weight:600;color:#111827;">{parcel['weight_kg']} kg</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px 0;color:#6b7280;">Shipping Method</td>
+                        <td style="padding:8px 0;text-align:right;font-weight:600;color:#111827;">{shipping_method_text}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px 0;color:#6b7280;">Booking Date</td>
+                        <td style="padding:8px 0;text-align:right;font-weight:600;color:#111827;">{booking_date_text}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="padding:22px 30px;background:#f9fafb;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;">Total Cost</div>
+                    <div style="font-size:26px;font-weight:800;color:#0f172a;">PHP {parcel['cost_php']:.2f}</div>
+                </div>
+                <a href="{tracking_url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;">Track Parcel</a>
+            </div>
+
+            <div style="padding:20px 30px;font-size:13px;line-height:1.7;color:#6b7280;">
+                For inquiries: <strong>info@freight.com</strong> | <strong>(02) 8911-1888</strong><br>
+                Freight & Logistics Team
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        msg = Message(subject=subject, recipients=[user_email], body=body, html=html)
+        mail.send(msg)
+        print(f"✓ Confirmation email sent to {user_email}")
+        return True
+    except Exception as e:
+        print(f"⚠ Error sending confirmation email: {e}")
+        return False
 
 # ==================== ROUTES ====================
 
@@ -702,8 +866,13 @@ def courier_parcel_detail(parcel_id):
 @require_courier
 def update_condition(parcel_id):
     """Update parcel condition"""
-    new_condition = request.form.get('condition')
-    notes = request.form.get('notes', '')
+    new_condition = request.form.get('condition', '').strip()
+    notes = request.form.get('notes', '').strip()
+    
+    # Validate condition is provided
+    if not new_condition:
+        flash('Please select a condition status.', 'danger')
+        return redirect(url_for('courier_parcel_detail', parcel_id=parcel_id))
     
     conn = get_db_connection()
     if not conn:
@@ -724,26 +893,28 @@ def update_condition(parcel_id):
             flash('Parcel not found or not assigned to you.', 'danger')
             return redirect(url_for('courier_dashboard'))
         
-        # Get previous condition
-        cursor.execute("SELECT new_condition FROM parcel_conditions WHERE parcel_id = %s ORDER BY updated_at DESC LIMIT 1", (parcel_id,))
-        prev_condition_row = cursor.fetchone()
-        previous_condition = prev_condition_row['new_condition'] if prev_condition_row else 'Unknown'
-        
-        # Insert condition record
+        # Insert condition record - only columns that exist in the actual table
         cursor.execute("""
-            INSERT INTO parcel_conditions (parcel_id, courier_id, previous_condition, new_condition, notes)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (parcel_id, session['user_id'], previous_condition, new_condition, notes))
+            INSERT INTO parcel_conditions (parcel_id, new_condition, notes)
+            VALUES (%s, %s, %s)
+        """, (parcel_id, new_condition, notes if notes else None))
         
-        # Update parcel status if condition is 'delivered'
-        if new_condition == 'delivered':
+        # Update parcel status based on condition
+        status_mapping = {
+            'delivered': 'delivered',
+            'in_transit': 'in_transit',
+            'returned': 'returned',
+            'intact': 'in_transit',
+            'damaged': 'in_transit',
+            'delayed': 'in_transit',
+            'lost': 'returned'
+        }
+        
+        new_status = status_mapping.get(new_condition, parcel['status'])
+        if new_status != parcel['status']:
             cursor.execute("""
-                UPDATE parcels SET status = 'delivered', updated_at = NOW() WHERE parcel_id = %s
-            """, (parcel_id,))
-        elif new_condition == 'in_transit':
-            cursor.execute("""
-                UPDATE parcels SET status = 'in_transit', updated_at = NOW() WHERE parcel_id = %s
-            """, (parcel_id,))
+                UPDATE parcels SET status = %s, updated_at = NOW() WHERE parcel_id = %s
+            """, (new_status, parcel_id))
         
         conn.commit()
         log_action(session['user_id'], 'Update Parcel Condition', 'parcel_condition', parcel_id,
@@ -752,7 +923,8 @@ def update_condition(parcel_id):
         flash('Condition updated successfully.', 'success')
     except Error as e:
         print(f"Error updating condition: {e}")
-        flash('An error occurred.', 'danger')
+        conn.rollback()
+        flash(f'Error updating condition: {str(e)}', 'danger')
     finally:
         cursor.close()
         conn.close()
@@ -882,6 +1054,19 @@ def book_parcel():
             conn.commit()
             parcel_id = cursor.lastrowid
             
+            # Fetch complete parcel details for email
+            cursor.execute("""
+                SELECT parcel_id, tracking_number, user_id, sender_name, sender_phone, sender_address,
+                       receiver_name, receiver_phone, receiver_address, origin_city, destination_city,
+                       weight_kg, cost_php, shipping_method, notes, status, created_at
+                FROM parcels WHERE parcel_id = %s
+            """, (parcel_id,))
+            parcel_details = cursor.fetchone()
+            
+            # Fetch user email for confirmation email
+            cursor.execute("SELECT email, full_name FROM users WHERE user_id = %s", (session['user_id'],))
+            user_info = cursor.fetchone()
+            
             # If courier selected, assign immediately
             if courier_id:
                 cursor.execute("""
@@ -896,6 +1081,11 @@ def book_parcel():
                 log_action(session['user_id'], 'Book Parcel - Pending Courier Assignment', 'parcel', parcel_id,
                           new_values={'tracking': tracking_number})
                 flash(f'Parcel created! Please select a courier to complete the booking. Tracking #: {tracking_number}', 'warning')
+            
+            # Send confirmation email
+            if parcel_details and user_info:
+                send_booking_confirmation_email(user_info['email'], user_info['full_name'], parcel_details)
+                flash('Confirmation email sent to your registered email address.', 'info')
             
             cursor.close()
             return redirect(url_for('user_dashboard'))
@@ -1100,6 +1290,83 @@ def cancel_parcel_user(parcel_id):
     finally:
         cursor.close()
         conn.close()
+
+
+@app.route('/user/parcel/<int:parcel_id>/rate-courier', methods=['POST'])
+@require_user
+def rate_courier(parcel_id):
+    """Rate the courier assigned to a delivered parcel."""
+    rating_stars = request.form.get('rating_stars', type=int)
+    review_text = request.form.get('review_text', '').strip()
+
+    if rating_stars is None or rating_stars < 1 or rating_stars > 5:
+        flash('Please select a rating from 1 to 5 stars.', 'danger')
+        return redirect(url_for('user_parcel_detail', parcel_id=parcel_id))
+
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection error.', 'danger')
+        return redirect(url_for('user_parcel_detail', parcel_id=parcel_id))
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT p.parcel_id, p.status, pa.courier_id, u.full_name AS courier_name
+            FROM parcels p
+            LEFT JOIN parcel_assignments pa ON p.parcel_id = pa.parcel_id
+            LEFT JOIN users u ON pa.courier_id = u.user_id
+            WHERE p.parcel_id = %s AND p.user_id = %s AND p.is_deleted = FALSE
+            ORDER BY pa.assigned_at DESC
+            LIMIT 1
+        """, (parcel_id, session['user_id']))
+        parcel = cursor.fetchone()
+
+        if not parcel:
+            flash('Parcel not found.', 'danger')
+            return redirect(url_for('user_dashboard'))
+
+        if parcel['status'] != 'delivered':
+            flash('You can only rate a courier after the parcel has been delivered.', 'warning')
+            return redirect(url_for('user_parcel_detail', parcel_id=parcel_id))
+
+        if not parcel.get('courier_id'):
+            flash('No courier has been assigned to this parcel yet.', 'warning')
+            return redirect(url_for('user_parcel_detail', parcel_id=parcel_id))
+
+        cursor.execute("""
+            INSERT INTO courier_ratings (parcel_id, user_id, courier_id, rating_stars, review_text)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                user_id = VALUES(user_id),
+                courier_id = VALUES(courier_id),
+                rating_stars = VALUES(rating_stars),
+                review_text = VALUES(review_text),
+                created_at = CURRENT_TIMESTAMP
+        """, (parcel_id, session['user_id'], parcel['courier_id'], rating_stars, review_text or None))
+        conn.commit()
+
+        log_action(
+            session['user_id'],
+            'Rate Courier',
+            'courier_rating',
+            parcel_id,
+            new_values={
+                'parcel_id': parcel_id,
+                'courier_id': parcel['courier_id'],
+                'rating_stars': rating_stars,
+                'review_text': review_text,
+            }
+        )
+
+        flash(f'Thanks for rating {parcel["courier_name"] or "the courier"} {rating_stars} star(s).', 'success')
+    except Error as e:
+        print(f"Error rating courier: {e}")
+        flash('Unable to save your rating right now.', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for('user_parcel_detail', parcel_id=parcel_id))
 
 @app.route('/api/get-available-couriers', methods=['GET'])
 @require_user
